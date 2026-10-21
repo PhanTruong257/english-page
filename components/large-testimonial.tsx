@@ -3,45 +3,37 @@ import TestimonialImg from "@/public/images/large-testimonial.jpg";
 
 export default function LargeTestimonial() {
   return (
-    <section>
-      <div className="mx-auto max-w-2xl px-4 sm:px-6">
-        <div className="py-12 md:py-20">
-          <div className="space-y-3 text-center">
-            <div className="relative inline-flex">
-              <svg
-                className="absolute -left-6 -top-2 -z-10"
-                width={40}
-                height={49}
-                viewBox="0 0 40 49"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M22.7976 -0.000136375L39.9352 23.4746L33.4178 31.7234L13.7686 11.4275L22.7976 -0.000136375ZM9.34947 17.0206L26.4871 40.4953L19.9697 48.7441L0.320491 28.4482L9.34947 17.0206Z"
-                  fill="#D1D5DB"
-                />
-              </svg>
-              <Image
-                className="rounded-full"
-                src={TestimonialImg}
-                width={48}
-                height={48}
-                alt="Large testimonial"
-              />
-            </div>
-            <p className="text-2xl font-bold text-gray-900">
-              “Simple has simplified my life in more ways than one. From
-              managing my sites to{" "}
-              <em className="italic text-gray-500">keeping track of tasks</em>,
-              it's become my go-to tool for everything.”
-            </p>
-            <div className="text-sm font-medium text-gray-500">
-              <span className="text-gray-700">Mary Sullivan</span>{" "}
-              <span className="text-gray-400">/</span>{" "}
-              <a className="text-blue-500" href="#0">
-                CTO at Microsoft
-              </a>
-            </div>
+    <section id="testimonials" className="bg-white py-16 md:py-24 border-t border-gray-100">
+      <div className="mx-auto max-w-3xl px-4 sm:px-6">
+        <div className="space-y-4 text-center">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200/50">
+            <span>💬 Alumni Success Story</span>
+          </div>
+
+          <div className="relative inline-flex pt-2">
+            <Image
+              className="rounded-full ring-4 ring-blue-50 shadow-md"
+              src={TestimonialImg}
+              width={64}
+              height={64}
+              alt="Alumnus Marcus Nguyen"
+            />
+          </div>
+
+          <blockquote className="text-xl md:text-2xl font-bold text-gray-900 leading-snug">
+            &quot;Before studying at Apex Academy, I dreaded speaking up in regional strategy meetings and always hid behind email. Working 1-on-1 with Instructor David for 8 weeks transformed my confidence. I just pitched our new product line to over 40 global stakeholders without hesitation!&quot;
+          </blockquote>
+
+          <div className="text-sm font-medium text-gray-500">
+            <span className="text-gray-900 font-semibold">Marcus Nguyen</span>{" "}
+            <span className="text-gray-300">/</span>{" "}
+            <span className="text-blue-600 font-medium">
+              Lead Solutions Architect at Global FinTech
+            </span>
+          </div>
+
+          <div className="pt-2 flex justify-center text-amber-400 text-sm tracking-widest">
+            ★★★★★
           </div>
         </div>
       </div>

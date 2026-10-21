@@ -1,6 +1,6 @@
 export const metadata = {
-  title: "Home - Simple",
-  description: "Page description",
+  title: "Apex English Academy — Master Spoken English Communication",
+  description: "Accelerate your spoken English fluency with certified native instructors. Join personalized 1-on-1 coaching and career communication workshops.",
 };
 
 import Hero from "@/components/hero-home";

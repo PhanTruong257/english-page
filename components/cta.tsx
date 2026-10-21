@@ -1,12 +1,14 @@
+"use client";
+
 import Image from "next/image";
 import Stripes from "@/public/images/stripes-dark.svg";
 
 export default function Cta() {
   return (
-    <section>
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+    <section id="consultation" className="py-16 md:py-24 bg-white">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <div
-          className="relative overflow-hidden rounded-2xl text-center shadow-xl before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-2xl before:bg-gray-900"
+          className="relative overflow-hidden rounded-3xl text-center shadow-2xl before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-3xl before:bg-blue-600 px-6 py-14 md:px-12 md:py-20"
           data-aos="zoom-y-out"
         >
           {/* Glow */}
@@ -14,11 +16,12 @@ export default function Cta() {
             className="absolute bottom-0 left-1/2 -z-10 -translate-x-1/2 translate-y-1/2"
             aria-hidden="true"
           >
-            <div className="h-56 w-[480px] rounded-full border-[20px] border-blue-500 blur-3xl" />
+            <div className="h-64 w-[520px] rounded-full border-[24px] border-blue-400 blur-3xl opacity-40" />
           </div>
-          {/* Stripes illustration */}
+
+          {/* Stripes */}
           <div
-            className="pointer-events-none absolute left-1/2 top-0 -z-10 -translate-x-1/2 transform"
+            className="pointer-events-none absolute left-1/2 top-0 -z-10 -translate-x-1/2 transform opacity-30"
             aria-hidden="true"
           >
             <Image
@@ -26,25 +29,49 @@ export default function Cta() {
               src={Stripes}
               width={768}
               height={432}
-              alt="Stripes"
+              alt="Background pattern"
             />
           </div>
-          <div className="px-4 py-12 md:px-12 md:py-20">
-            <h2 className="mb-6 border-y text-3xl font-bold text-gray-200 [border-image:linear-gradient(to_right,transparent,--theme(--color-slate-700/.7),transparent)1] md:mb-12 md:text-4xl">
-              Create your next project with Simple
+
+          <div className="mx-auto max-w-2xl">
+            <span className="inline-block rounded-full bg-blue-500/30 px-3.5 py-1 text-xs font-semibold text-white mb-4 border border-blue-400/40">
+              🎓 Complimentary Speaking Evaluation
+            </span>
+
+            <h2 className="mb-4 text-3xl font-extrabold text-white md:text-5xl tracking-tight">
+              Ready to Speak English with Unshakable Confidence?
             </h2>
-            <div className="mx-auto max-w-xs sm:flex sm:max-w-none sm:justify-center">
-              <a
-                className="btn group mb-4 w-full bg-linear-to-t from-blue-600 to-blue-500 bg-[length:100%_100%] bg-[bottom] text-white shadow-sm hover:bg-[length:100%_150%] sm:mb-0 sm:w-auto"
-                href="#0"
+
+            <p className="mb-8 text-base md:text-lg text-blue-100 leading-relaxed">
+              Book a free 20-minute diagnostic session with one of our certified native instructors. Receive an instant fluency report and a customized learning roadmap.
+            </p>
+
+            <div className="mx-auto max-w-md">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  alert(
+                    "Thank you for registering! Our academic advisor will contact you within 24 hours to confirm your speaking assessment."
+                  );
+                }}
+                className="flex flex-col sm:flex-row gap-3"
               >
-                <span className="relative inline-flex items-center">
-                  Start Free Trial{" "}
-                  <span className="ml-1 tracking-normal text-blue-300 transition-transform group-hover:translate-x-0.5">
-                    -&gt;
-                  </span>
-                </span>
-              </a>
+                <input
+                  type="text"
+                  placeholder="Enter your email or phone number..."
+                  required
+                  className="w-full rounded-xl bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-hidden focus:ring-2 focus:ring-white shadow-sm"
+                />
+                <button
+                  type="submit"
+                  className="shrink-0 rounded-xl bg-gray-900 px-6 py-3 text-sm font-bold text-white shadow-md hover:bg-black transition cursor-pointer"
+                >
+                  Book Free Assessment
+                </button>
+              </form>
+              <p className="mt-3 text-xs text-blue-200">
+                🔒 No credit card required. 100% confidential.
+              </p>
             </div>
           </div>
         </div>

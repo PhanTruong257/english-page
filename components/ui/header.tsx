@@ -5,31 +5,37 @@ export default function Header() {
   return (
     <header className="fixed top-2 z-30 w-full md:top-6">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="relative flex h-14 items-center justify-between gap-3 rounded-2xl bg-white/90 px-3 shadow-lg shadow-black/[0.03] backdrop-blur-xs before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:border before:border-transparent before:[background:linear-gradient(var(--color-gray-100),var(--color-gray-200))_border-box] before:[mask-composite:exclude_!important] before:[mask:linear-gradient(white_0_0)_padding-box,_linear-gradient(white_0_0)]">
-          {/* Site branding */}
-          <div className="flex flex-1 items-center">
+        <div className="relative flex h-14 items-center justify-between gap-3 rounded-2xl bg-white/95 px-4 shadow-lg shadow-black/[0.04] backdrop-blur-md border border-gray-200/80">
+          <div className="flex items-center">
             <Logo />
           </div>
 
-          {/* Desktop sign in links */}
-          <ul className="flex flex-1 items-center justify-end gap-3">
-            <li>
-              <Link
-                href="/signin"
-                className="btn-sm bg-white text-gray-800 shadow-sm hover:bg-gray-50"
-              >
-                Login
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/signup"
-                className="btn-sm bg-gray-800 text-gray-200 shadow-sm hover:bg-gray-900"
-              >
-                Register
-              </Link>
-            </li>
-          </ul>
+          <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-gray-600">
+            <Link href="#about" className="transition hover:text-blue-600">
+              About Us
+            </Link>
+            <Link href="#faculty" className="transition hover:text-blue-600">
+              Our Teachers
+            </Link>
+            <Link href="#programs" className="transition hover:text-blue-600">
+              Programs
+            </Link>
+            <Link href="#features" className="transition hover:text-blue-600">
+              Methodology
+            </Link>
+            <Link href="#testimonials" className="transition hover:text-blue-600">
+              Reviews
+            </Link>
+          </nav>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href="#consultation"
+              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+            >
+              Book Free Trial
+            </Link>
+          </div>
         </div>
       </div>
     </header>
