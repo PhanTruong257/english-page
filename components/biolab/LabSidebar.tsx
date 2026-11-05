@@ -11,6 +11,7 @@ import {
   QuizQuestion,
 } from './types';
 import LabAnalyticsChart from './LabAnalyticsChart';
+import PhotosynthesisRelationshipMap from './PhotosynthesisRelationshipMap';
 
 interface Props {
   activeLab: LabId;
@@ -590,6 +591,12 @@ export default function LabSidebar({
                 >
                   🔄 Đổ đầy nước / Đặt lại ống nghiệm
                 </button>
+
+                {/* Dynamic Multi-Factor Relationship Map & Causality Diagram */}
+                <PhotosynthesisRelationshipMap
+                  state={synthState}
+                  onUpdateState={onUpdateSynthState}
+                />
               </>
             )}
 
@@ -725,6 +732,13 @@ export default function LabSidebar({
                     <div className="text-lg font-mono font-bold text-amber-400 mt-1">
                       {Math.round(synthState.collectedO2Volume)}%
                     </div>
+                  </div>
+
+                  <div className="col-span-2">
+                    <PhotosynthesisRelationshipMap
+                      state={synthState}
+                      onUpdateState={onUpdateSynthState}
+                    />
                   </div>
                 </>
               )}
