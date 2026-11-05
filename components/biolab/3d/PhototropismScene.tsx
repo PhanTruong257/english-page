@@ -79,13 +79,15 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
     grid.position.y = 0.01;
     scene.add(grid);
 
-    // 4. Plant Pot
+    // 4. Plant Pot (Hollow realistic pot with no coplanar Z-fighting)
     const potGroup = new THREE.Group();
-    const potGeo = new THREE.CylinderGeometry(0.9, 0.65, 1.3, 32);
+    // openEnded: true ensures the pot is hollow and has NO solid clay lid
+    const potGeo = new THREE.CylinderGeometry(0.92, 0.66, 1.3, 36, 1, true);
     const potMat = new THREE.MeshStandardMaterial({
       color: 0xc27142,
       roughness: 0.7,
       metalness: 0.1,
+      side: THREE.DoubleSide,
     });
     const pot = new THREE.Mesh(potGeo, potMat);
     pot.position.y = 0.65;
@@ -93,19 +95,27 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
     pot.receiveShadow = true;
     potGroup.add(pot);
 
+    // Pot bottom plate
+    const potBottomGeo = new THREE.CircleGeometry(0.66, 36);
+    potBottomGeo.rotateX(Math.PI / 2);
+    const potBottom = new THREE.Mesh(potBottomGeo, potMat);
+    potBottom.position.y = 0.01;
+    potGroup.add(potBottom);
+
     // Pot Rim
-    const rimGeo = new THREE.TorusGeometry(0.92, 0.07, 16, 32);
+    const rimGeo = new THREE.TorusGeometry(0.93, 0.06, 16, 36);
     const rimMat = new THREE.MeshStandardMaterial({ color: 0xad5d32, roughness: 0.6 });
     const rim = new THREE.Mesh(rimGeo, rimMat);
     rim.rotation.x = Math.PI / 2;
     rim.position.y = 1.3;
     potGroup.add(rim);
 
-    // Soil inside pot
-    const soilGeo = new THREE.CylinderGeometry(0.85, 0.85, 0.1, 32);
-    const soilMat = new THREE.MeshStandardMaterial({ color: 0x24160c, roughness: 0.95 });
+    // Soil inside pot (recessed inside hollow pot, absolutely no Z-fighting)
+    const soilGeo = new THREE.CylinderGeometry(0.88, 0.72, 0.4, 36);
+    const soilMat = new THREE.MeshStandardMaterial({ color: 0x1f140e, roughness: 0.95 });
     const soil = new THREE.Mesh(soilGeo, soilMat);
-    soil.position.y = 1.25;
+    soil.position.y = 1.05; // Top surface at y = 1.25, cleanly below rim at 1.30
+    soil.receiveShadow = true;
     potGroup.add(soil);
 
     scene.add(potGroup);
