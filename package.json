@@ -4,7 +4,7 @@
   "description": "Phòng thí nghiệm Sinh học ảo 3D tương tác (3D Interactive Biology Lab)",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
