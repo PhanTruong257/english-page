@@ -37,7 +37,6 @@ export default function PhototropismScene({
 
   // Direct Interactive Lamp Control Modal / Popover
   const [isLampControlOpen, setIsLampControlOpen] = useState(false);
-  const [isHoveringLamp, setIsHoveringLamp] = useState(false);
 
   // Reference to environment controller
   const envControllerRef = useRef<{ setDarkroom: (dark: boolean) => void } | null>(null);
@@ -654,42 +653,6 @@ export default function PhototropismScene({
       }
     }
 
-    // Direct Interaction on Lamp via Raycaster
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-
-    const handlePointerMove = (e: MouseEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(lampClickables, true);
-      if (intersects.length > 0) {
-        renderer.domElement.style.cursor = 'pointer';
-        setIsHoveringLamp(true);
-      } else {
-        renderer.domElement.style.cursor = 'default';
-        setIsHoveringLamp(false);
-      }
-    };
-
-    const handlePointerDown = (e: MouseEvent) => {
-      if (e.button !== 0) return;
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(lampClickables, true);
-      if (intersects.length > 0) {
-        setIsLampControlOpen((prev) => !prev);
-      }
-    };
-
-    renderer.domElement.addEventListener('mousemove', handlePointerMove);
-    renderer.domElement.addEventListener('click', handlePointerDown);
-
     // Animation Loop
     let animationFrameId: number;
     let clock = new THREE.Clock();
@@ -799,8 +762,6 @@ export default function PhototropismScene({
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      renderer.domElement.removeEventListener('mousemove', handlePointerMove);
-      renderer.domElement.removeEventListener('click', handlePointerDown);
       cancelAnimationFrame(animationFrameId);
       controls.dispose();
       renderer.dispose();
@@ -868,8 +829,6 @@ export default function PhototropismScene({
           className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold text-xs shadow-md backdrop-blur-md transition-all cursor-pointer ${
             isLampControlOpen
               ? 'bg-amber-500 text-slate-950 font-extrabold ring-2 ring-amber-400'
-              : isHoveringLamp
-              ? 'bg-amber-400 text-slate-950 scale-105'
               : 'bg-slate-900/90 text-amber-300 border border-slate-700 hover:bg-slate-800'
           }`}
         >

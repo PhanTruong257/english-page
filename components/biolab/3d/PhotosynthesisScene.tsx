@@ -26,7 +26,6 @@ export default function PhotosynthesisScene({ state, onUpdateState, onUpdateBubb
 
   const [cameraView, setCameraView] = useState<'overview' | 'closeup'>('overview');
   const [isLampControlOpen, setIsLampControlOpen] = useState(false);
-  const [isHoveringLamp, setIsHoveringLamp] = useState(false);
 
   const switchCameraView = (view: 'overview' | 'closeup') => {
     setCameraView(view);
@@ -414,42 +413,6 @@ export default function PhotosynthesisScene({ state, onUpdateState, onUpdateBubb
     lampRig.add(filterMesh);
     lampClickables.push(filterMesh);
 
-    // Direct Raycaster for Lamp Interaction
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-
-    const handlePointerMove = (e: MouseEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(lampClickables, true);
-      if (intersects.length > 0) {
-        renderer.domElement.style.cursor = 'pointer';
-        setIsHoveringLamp(true);
-      } else {
-        renderer.domElement.style.cursor = 'default';
-        setIsHoveringLamp(false);
-      }
-    };
-
-    const handlePointerDown = (e: MouseEvent) => {
-      if (e.button !== 0) return;
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(lampClickables, true);
-      if (intersects.length > 0) {
-        setIsLampControlOpen((prev) => !prev);
-      }
-    };
-
-    renderer.domElement.addEventListener('mousemove', handlePointerMove);
-    renderer.domElement.addEventListener('click', handlePointerDown);
-
     // 10. Glowing Splint & Flame
     const splintGroup = new THREE.Group();
     splintGroup.position.set(0, 3.8, 0);
@@ -634,8 +597,6 @@ export default function PhotosynthesisScene({ state, onUpdateState, onUpdateBubb
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      renderer.domElement.removeEventListener('mousemove', handlePointerMove);
-      renderer.domElement.removeEventListener('click', handlePointerDown);
       cancelAnimationFrame(animationFrameId);
       controls.dispose();
       renderer.dispose();
@@ -667,8 +628,6 @@ export default function PhotosynthesisScene({ state, onUpdateState, onUpdateBubb
           className={`px-3 py-1.5 rounded-xl text-xs font-bold backdrop-blur-md border transition cursor-pointer flex items-center gap-1.5 shadow-sm ${
             isLampControlOpen
               ? 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-500/30'
-              : isHoveringLamp
-              ? 'bg-amber-100 text-amber-900 border-2 border-amber-400 scale-105'
               : 'bg-white/90 border-slate-200 text-slate-700 hover:bg-amber-50'
           }`}
         >

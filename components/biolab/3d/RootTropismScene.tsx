@@ -22,7 +22,6 @@ export default function RootTropismScene({ state, onUpdateState, onUpdateRootAng
 
   const currentAngleRef = useRef(0);
   const [isWaterControlOpen, setIsWaterControlOpen] = useState(false);
-  const [isHoveringSponge, setIsHoveringSponge] = useState(false);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -424,42 +423,6 @@ export default function RootTropismScene({ state, onUpdateState, onUpdateRootAng
       }
     }
 
-    // Direct Raycaster for Interactive Sponge & Chamber
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-
-    const handlePointerMove = (e: MouseEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObject(sponge, true);
-      if (intersects.length > 0) {
-        renderer.domElement.style.cursor = 'pointer';
-        setIsHoveringSponge(true);
-      } else {
-        renderer.domElement.style.cursor = 'default';
-        setIsHoveringSponge(false);
-      }
-    };
-
-    const handlePointerDown = (e: MouseEvent) => {
-      if (e.button !== 0) return;
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObject(sponge, true);
-      if (intersects.length > 0) {
-        setIsWaterControlOpen((prev) => !prev);
-      }
-    };
-
-    renderer.domElement.addEventListener('mousemove', handlePointerMove);
-    renderer.domElement.addEventListener('click', handlePointerDown);
-
     // Animation Loop
     let animationFrameId: number;
     let clock = new THREE.Clock();
@@ -529,8 +492,6 @@ export default function RootTropismScene({ state, onUpdateState, onUpdateRootAng
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      renderer.domElement.removeEventListener('mousemove', handlePointerMove);
-      renderer.domElement.removeEventListener('click', handlePointerDown);
       cancelAnimationFrame(animationFrameId);
       controls.dispose();
       renderer.dispose();
@@ -561,8 +522,6 @@ export default function RootTropismScene({ state, onUpdateState, onUpdateRootAng
         className={`absolute top-4 right-4 z-20 flex items-center gap-2 px-3.5 py-2 rounded-2xl font-bold text-xs shadow-lg backdrop-blur-md transition-all cursor-pointer ${
           isWaterControlOpen
             ? 'bg-sky-500 text-white ring-4 ring-sky-500/20'
-            : isHoveringSponge
-            ? 'bg-sky-100 text-sky-900 border-2 border-sky-400 scale-105'
             : 'bg-white/95 text-slate-800 border border-slate-200 hover:bg-sky-50 hover:text-sky-800'
         }`}
       >
