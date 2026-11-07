@@ -17,6 +17,7 @@ export default function BioLabMaster() {
 
   const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
+  const [sidebarTab, setSidebarTab] = useState<'controls' | 'inquiry' | 'analytics' | 'mechanism' | 'missions'>('controls');
 
   // LAB 1 STATE
   const [photoState, setPhotoState] = useState<PhototropismState>({
@@ -132,6 +133,7 @@ export default function BioLabMaster() {
               state={photoState}
               onUpdateState={setPhotoState}
               onAngleUpdate={(ang) => setPhotoCurrentAngle(ang)}
+              onOpenInquiry={() => setSidebarTab('inquiry')}
               isPlaying={isPlaying}
             />
           )}
@@ -165,6 +167,8 @@ export default function BioLabMaster() {
         <aside className="lg:col-span-5 xl:col-span-4 flex flex-col h-[650px] lg:h-[720px]">
           <LabSidebar
             activeLab={activeLab}
+            activeTab={sidebarTab}
+            onTabChange={setSidebarTab}
             photoState={photoState}
             onUpdatePhotoState={setPhotoState}
             photoCurrentAngle={photoCurrentAngle}

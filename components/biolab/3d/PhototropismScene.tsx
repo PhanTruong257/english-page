@@ -10,10 +10,17 @@ interface Props {
   state: PhototropismState;
   onUpdateState?: (updater: (prev: PhototropismState) => PhototropismState) => void;
   onAngleUpdate?: (angle: number) => void;
+  onOpenInquiry?: () => void;
   isPlaying: boolean;
 }
 
-export default function PhototropismScene({ state, onUpdateState, onAngleUpdate, isPlaying }: Props) {
+export default function PhototropismScene({
+  state,
+  onUpdateState,
+  onAngleUpdate,
+  onOpenInquiry,
+  isPlaying,
+}: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -23,9 +30,17 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
   // Track smoothly interpolated bent angle
   const currentBentAngleRef = useRef(0);
 
+  // Darkroom Mode state (Default TRUE for high-contrast directional light observation)
+  const [isDarkroom, setIsDarkroom] = useState<boolean>(true);
+  const darkroomRef = useRef<boolean>(true);
+  darkroomRef.current = isDarkroom;
+
   // Direct Interactive Lamp Control Modal / Popover
   const [isLampControlOpen, setIsLampControlOpen] = useState(false);
   const [isHoveringLamp, setIsHoveringLamp] = useState(false);
+
+  // Reference to environment controller
+  const envControllerRef = useRef<{ setDarkroom: (dark: boolean) => void } | null>(null);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -48,19 +63,20 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.25;
     container.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.maxPolarAngle = Math.PI / 2 + 0.02;
-    controls.minDistance = 3;
+    controls.minDistance = 2.8;
     controls.maxDistance = 16;
     controls.target.set(0, 1.8, 0);
 
-    // 2. Setup Realistic Bright Laboratory Environment
-    setupLabEnvironment(scene);
+    // 2. Setup Realistic Laboratory Environment (Initial Darkroom mode for phototropism)
+    const env = setupLabEnvironment(scene, { isDarkroom: darkroomRef.current });
+    envControllerRef.current = env;
 
     // 3. Plant Pot (High Quality Terracotta Ceramic Pot with Drain Saucer)
     const potGroup = new THREE.Group();
@@ -113,8 +129,8 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     // Rich Loam Soil (dark textured earth recessed cleanly below the rim)
     const soilGeo = new THREE.CylinderGeometry(0.9, 0.78, 0.45, 36);
     const soilMat = new THREE.MeshStandardMaterial({
-      color: 0x271c16,
-      roughness: 0.95,
+      color: 0x1f1610,
+      roughness: 0.96,
       metalness: 0.02,
     });
     const soil = new THREE.Mesh(soilGeo, soilMat);
@@ -123,24 +139,26 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     potGroup.add(soil);
 
     // Organic Soil Mound around stem collar
-    const soilMoundGeo = new THREE.ConeGeometry(0.35, 0.08, 24);
-    const soilMoundMat = new THREE.MeshStandardMaterial({ color: 0x221711, roughness: 0.98 });
+    const soilMoundGeo = new THREE.ConeGeometry(0.38, 0.09, 24);
+    const soilMoundMat = new THREE.MeshStandardMaterial({ color: 0x1a120d, roughness: 0.98 });
     const soilMound = new THREE.Mesh(soilMoundGeo, soilMoundMat);
     soilMound.position.y = 1.38;
+    soilMound.receiveShadow = true;
     potGroup.add(soilMound);
 
     // Realistic scattered Perlite grains (hạt đá trân châu perlite xốp trắng giữ ẩm tự nhiên)
     const perliteMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.8 });
-    for (let i = 0; i < 35; i++) {
-      const radius = 0.12 + Math.random() * 0.7;
+    for (let i = 0; i < 40; i++) {
+      const radius = 0.12 + Math.random() * 0.72;
       const angle = Math.random() * Math.PI * 2;
       const px = Math.cos(angle) * radius;
       const pz = Math.sin(angle) * radius;
       const pScale = 0.02 + Math.random() * 0.025;
 
       const perlite = new THREE.Mesh(new THREE.DodecahedronGeometry(pScale, 0), perliteMat);
-      perlite.position.set(px, 1.375 + Math.random() * 0.01, pz);
+      perlite.position.set(px, 1.375 + Math.random() * 0.012, pz);
       perlite.rotation.set(Math.random(), Math.random(), Math.random());
+      perlite.receiveShadow = true;
       potGroup.add(perlite);
     }
 
@@ -155,12 +173,12 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     let auxinParticles: THREE.Points | null = null;
 
     // Auxin particle geometry setup
-    const particleCount = 200;
+    const particleCount = 220;
     const particleGeo = new THREE.BufferGeometry();
     const particlePositions = new Float32Array(particleCount * 3);
     const particleTValues = new Float32Array(particleCount);
     for (let i = 0; i < particleCount; i++) {
-      particleTValues[i] = 0.15 + Math.random() * 0.8;
+      particleTValues[i] = 0.12 + Math.random() * 0.82;
       particlePositions[i * 3 + 0] = (Math.random() - 0.5) * 0.1;
       particlePositions[i * 3 + 1] = particleTValues[i] * 2.8;
       particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 0.1;
@@ -168,7 +186,7 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
     const particleMat = new THREE.PointsMaterial({
       color: 0xfacc15,
-      size: 0.09,
+      size: 0.1,
       transparent: true,
       opacity: 0.95,
       blending: THREE.AdditiveBlending,
@@ -181,7 +199,6 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     const lampGroup = new THREE.Group();
     scene.add(lampGroup);
 
-    // Interactive clickable lamp elements list for raycasting
     const lampClickables: THREE.Object3D[] = [];
 
     // Heavy Circular Steel Base
@@ -203,7 +220,7 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     baseJoint.position.y = 0.14;
     lampGroup.add(baseJoint);
 
-    // Lower Arm (Dual chrome rods)
+    // Lower Arm
     const lowerArm = new THREE.Mesh(
       new THREE.CylinderGeometry(0.045, 0.045, 1.8, 16),
       new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.9, roughness: 0.2 })
@@ -235,7 +252,7 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     lampGroup.add(upperArm);
     lampClickables.push(upperArm);
 
-    // Lamp Shade (Bell hood in sleek glossy ocean blue)
+    // Lamp Shade
     const shadeGeo = new THREE.ConeGeometry(0.64, 0.95, 36, 1, true);
     const shadeMat = new THREE.MeshStandardMaterial({
       color: 0x0284c7,
@@ -254,8 +271,8 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     const reflectorGeo = new THREE.ConeGeometry(0.62, 0.9, 36, 1, true);
     const reflectorMat = new THREE.MeshStandardMaterial({
       color: 0xf8fafc,
-      metalness: 0.9,
-      roughness: 0.1,
+      metalness: 0.95,
+      roughness: 0.08,
       side: THREE.DoubleSide,
     });
     const reflector = new THREE.Mesh(reflectorGeo, reflectorMat);
@@ -267,7 +284,7 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     const bulbMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       emissive: 0xffffff,
-      emissiveIntensity: 1.6,
+      emissiveIntensity: 2.8,
     });
     const bulb = new THREE.Mesh(bulbGeo, bulbMat);
     bulb.position.copy(lampShade.position);
@@ -275,23 +292,24 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     lampGroup.add(bulb);
     lampClickables.push(bulb);
 
-    // SpotLight emitting from bulb
-    const spotLight = new THREE.SpotLight(0xffffff, 5, 14, Math.PI / 3.8, 0.35, 1);
+    // High-Contrast Directional SpotLight emitting from bulb
+    const spotLight = new THREE.SpotLight(0xfffbeb, 8, 16, Math.PI / 3.6, 0.35, 1);
     spotLight.castShadow = true;
-    spotLight.shadow.mapSize.width = 1024;
-    spotLight.shadow.mapSize.height = 1024;
+    spotLight.shadow.mapSize.width = 2048;
+    spotLight.shadow.mapSize.height = 2048;
     spotLight.shadow.camera.near = 0.5;
-    spotLight.shadow.camera.far = 14;
+    spotLight.shadow.camera.far = 16;
+    spotLight.shadow.bias = -0.0004;
     spotLight.position.copy(lampShade.position);
     scene.add(spotLight);
 
-    // Visual soft light cone mesh
-    const beamGeo = new THREE.ConeGeometry(2.4, 4.4, 36, 1, true);
-    beamGeo.translate(0, -2.2, 0);
+    // Visual soft light cone mesh with strong atmospheric presence
+    const beamGeo = new THREE.ConeGeometry(2.6, 4.6, 36, 1, true);
+    beamGeo.translate(0, -2.3, 0);
     const beamMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.06,
+      opacity: 0.16,
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
@@ -301,6 +319,26 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     lampGroup.add(beamMesh);
     lampClickables.push(beamMesh);
 
+    // Floating Dust Motes / Photons inside the beam
+    const dustCount = 60;
+    const dustGeo = new THREE.BufferGeometry();
+    const dustPos = new Float32Array(dustCount * 3);
+    for (let i = 0; i < dustCount; i++) {
+      dustPos[i * 3 + 0] = (Math.random() - 0.5) * 1.5;
+      dustPos[i * 3 + 1] = 0.5 + Math.random() * 2.8;
+      dustPos[i * 3 + 2] = (Math.random() - 0.5) * 1.5;
+    }
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+    const dustMat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.055,
+      transparent: true,
+      opacity: 0.75,
+      blending: THREE.AdditiveBlending,
+    });
+    const dustPoints = new THREE.Points(dustGeo, dustMat);
+    lampGroup.add(dustPoints);
+
     // 5. Scientific Protractor Arc Gauge in 3D
     const protractorGroup = new THREE.Group();
     protractorGroup.position.set(0, 1.4, 0);
@@ -308,7 +346,7 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     const arcPoints = arcCurve.getPoints(50);
     const arcGeo = new THREE.BufferGeometry().setFromPoints(arcPoints);
     const arcMat = new THREE.LineDashedMaterial({
-      color: 0x0284c7,
+      color: 0x38bdf8,
       dashSize: 0.1,
       gapSize: 0.05,
       opacity: 0.65,
@@ -333,7 +371,7 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
       const tipOffsetX = Math.sin(angleRad) * (actualHeight * 0.58);
       const tipOffsetY = Math.cos(angleRad) * actualHeight;
 
-      // Adding subtle biological inflection (natural s-shape micro-waviness)
+      // Adding subtle biological micro-inflection (soft natural curvature)
       const p0 = new THREE.Vector3(0, 0, 0);
       const p1 = new THREE.Vector3(0, actualHeight * 0.28, 0.015);
       const p2 = new THREE.Vector3(tipOffsetX * 0.65, actualHeight * 0.68, -0.01);
@@ -341,23 +379,48 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
 
       const curve = new THREE.CubicBezierCurve3(p0, p1, p2, p3);
 
-      // Realistic Tapered Stem: generates tubular mesh that naturally tapers
-      // from thick base (r=0.10) to slender apical tip (r=0.055)
+      // Realistic Tapered Anatomical Stem
       const segments = 40;
       const radialSegments = 16;
       const frames = curve.computeFrenetFrames(segments, false);
       const stemVertices: number[] = [];
       const stemIndices: number[] = [];
       const stemNormals: number[] = [];
-      const stemUvs: number[] = [];
+      const stemColors: number[] = [];
 
       for (let i = 0; i <= segments; i++) {
         const u = i / segments;
         const pt = curve.getPointAt(u);
         const N = frames.normals[i];
         const B = frames.binormals[i];
-        // Botanical taper: wider hypocotyl collar at soil, slender at top
-        const radius = 0.105 - (u * 0.052);
+        // Botanical taper: wider base at root collar (r=0.108), slender at top (r=0.052)
+        const radius = 0.108 - (u * 0.056);
+
+        // Biological Color Gradient per vertex:
+        // Base (u near 0): Pale jade ivory with subtle pink blush
+        // Mid (u 0.2 - 0.7): Rich chlorophyll green
+        // Top (u > 0.7): Bright tender chartreuse lime
+        let rVal = 0.09;
+        let gVal = 0.65;
+        let bVal = 0.25;
+
+        if (u < 0.2) {
+          const tBase = u / 0.2;
+          rVal = THREE.MathUtils.lerp(0.85, 0.12, tBase);
+          gVal = THREE.MathUtils.lerp(0.88, 0.65, tBase);
+          bVal = THREE.MathUtils.lerp(0.75, 0.25, tBase);
+        } else if (u > 0.7) {
+          const tTop = (u - 0.7) / 0.3;
+          rVal = THREE.MathUtils.lerp(0.12, 0.65, tTop);
+          gVal = THREE.MathUtils.lerp(0.65, 0.92, tTop);
+          bVal = THREE.MathUtils.lerp(0.25, 0.20, tTop);
+        }
+
+        if (s.xrayMode) {
+          rVal = 0.04;
+          gVal = 0.72;
+          bVal = 0.85;
+        }
 
         for (let j = 0; j <= radialSegments; j++) {
           const v = j / radialSegments;
@@ -374,7 +437,7 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
 
           stemVertices.push(vertex.x, vertex.y, vertex.z);
           stemNormals.push(normal.x, normal.y, normal.z);
-          stemUvs.push(u, v);
+          stemColors.push(rVal, gVal, bVal);
         }
       }
 
@@ -393,14 +456,13 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
       const stemGeo = new THREE.BufferGeometry();
       stemGeo.setAttribute('position', new THREE.Float32BufferAttribute(stemVertices, 3));
       stemGeo.setAttribute('normal', new THREE.Float32BufferAttribute(stemNormals, 3));
-      stemGeo.setAttribute('uv', new THREE.Float32BufferAttribute(stemUvs, 2));
+      stemGeo.setAttribute('color', new THREE.Float32BufferAttribute(stemColors, 3));
       stemGeo.setIndex(stemIndices);
 
-      const stemColor = s.xrayMode ? 0x06b6d4 : 0x16a34a;
       const stemMat = new THREE.MeshStandardMaterial({
-        color: stemColor,
-        roughness: s.xrayMode ? 0.2 : 0.38,
-        metalness: 0.05,
+        vertexColors: true,
+        roughness: s.xrayMode ? 0.2 : 0.35,
+        metalness: 0.04,
         transparent: s.xrayMode,
         opacity: s.xrayMode ? 0.38 : 1.0,
       });
@@ -416,7 +478,7 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
         leavesMesh.position.copy(p3);
         leavesMesh.rotation.z = -angleRad;
 
-        // Realistic Cotyledon Leaf (spoon-curved thick fleshy cotyledons with distinct midrib vein)
+        // Realistic Cotyledon Leaf (Thick fleshy spoon-shape with distinct midrib vein)
         const cotyledonShape = new THREE.Shape();
         cotyledonShape.moveTo(0, 0);
         cotyledonShape.bezierCurveTo(0.18, 0.16, 0.45, 0.32, 0.72, 0.08);
@@ -434,7 +496,7 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
 
         const leafMat = new THREE.MeshStandardMaterial({
           color: s.xrayMode ? 0x0891b2 : 0x15803d,
-          roughness: 0.32,
+          roughness: 0.3,
           metalness: 0.04,
           transparent: s.xrayMode,
           opacity: s.xrayMode ? 0.45 : 1.0,
@@ -556,7 +618,7 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
 
         plantGroup.add(leavesMesh);
       } else {
-        // Decapitated Cut Surface: clean transverse cut showing vascular bundle
+        // Decapitated Cut Surface
         const cutGeo = new THREE.CircleGeometry(0.075, 16);
         cutGeo.rotateX(-Math.PI / 2);
         const cutMat = new THREE.MeshStandardMaterial({ color: 0x86efac, roughness: 0.6 });
@@ -613,7 +675,6 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     };
 
     const handlePointerDown = (e: MouseEvent) => {
-      // Only trigger on left-click without drag
       if (e.button !== 0) return;
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -639,6 +700,7 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
       const delta = clock.getDelta();
       const s = stateRef.current;
       const playing = isPlayingRef.current;
+      const dark = darkroomRef.current;
 
       let targetAngleDeg = 0;
       if (s.lightColor !== 'off' && s.lightIntensity > 5) {
@@ -688,8 +750,8 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
       beamMesh.rotateX(-Math.PI / 2);
 
       // Light Color & Intensity
-      let colorHex = 0xffffff;
-      let bulbIntensity = s.lightIntensity / 25;
+      let colorHex = 0xfffbeb;
+      let bulbIntensity = s.lightIntensity / 22;
       if (s.lightColor === 'off') {
         colorHex = 0x222222;
         bulbIntensity = 0;
@@ -700,11 +762,24 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
       }
 
       spotLight.color.setHex(colorHex);
-      spotLight.intensity = (s.lightIntensity / 100) * 8 * (s.lightColor === 'off' ? 0 : 1);
+      const intensityMult = dark ? 11 : 7.5;
+      spotLight.intensity = (s.lightIntensity / 100) * intensityMult * (s.lightColor === 'off' ? 0 : 1);
       (bulb.material as THREE.MeshStandardMaterial).emissive.setHex(colorHex);
       (bulb.material as THREE.MeshStandardMaterial).emissiveIntensity = bulbIntensity;
       beamMat.color.setHex(colorHex);
-      beamMat.opacity = (s.lightIntensity / 100) * 0.08 * (s.lightColor === 'off' ? 0 : 1);
+      beamMat.opacity = (s.lightIntensity / 100) * (dark ? 0.22 : 0.08) * (s.lightColor === 'off' ? 0 : 1);
+
+      // Floating dust particles animation
+      const time = clock.getElapsedTime();
+      const posAttr = dustGeo.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < dustCount; i++) {
+        let py = posAttr.getY(i) - delta * 0.12;
+        if (py < 0.2) py = 3.2;
+        posAttr.setY(i, py);
+        posAttr.setX(i, posAttr.getX(i) + Math.sin(time + i) * 0.001);
+      }
+      posAttr.needsUpdate = true;
+      dustPoints.visible = s.lightColor !== 'off' && s.lightIntensity > 10;
 
       updatePlantGeometry(currentBentAngleRef.current, s);
 
@@ -735,35 +810,73 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
     };
   }, []);
 
+  // Handle Darkroom Mode switch
+  const handleToggleDarkroom = () => {
+    const nextVal = !isDarkroom;
+    setIsDarkroom(nextVal);
+    darkroomRef.current = nextVal;
+    if (envControllerRef.current) {
+      envControllerRef.current.setDarkroom(nextVal);
+    }
+  };
+
   return (
-    <div className="relative w-full h-full min-h-[480px] rounded-2xl overflow-hidden bg-slate-100 border border-slate-300 shadow-xl">
+    <div className="relative w-full h-full min-h-[480px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-700 shadow-2xl">
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* Floating 3D HUD Badges (Clean Modern Lab Aesthetic) */}
+      {/* Floating 3D HUD Badges */}
       <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
-        <div className="flex items-center gap-2 bg-white/90 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-emerald-700 shadow-sm">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+        <div className="flex items-center gap-2 bg-slate-900/85 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-emerald-400 shadow-md">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
           Phòng Thí Nghiệm Sinh Học • Mô Hình Hướng Sáng
         </div>
-        <div className="bg-white/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 text-[11px] text-slate-700 shadow-sm">
-          Góc đèn: <strong className="text-amber-600">{state.lightAngle}°</strong> | Cường độ: <strong className="text-sky-600">{state.lightIntensity}%</strong>
+        <div className="bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/80 text-[11px] text-slate-200 shadow-md">
+          Góc đèn: <strong className="text-amber-400">{state.lightAngle}°</strong> | Cường độ: <strong className="text-sky-400">{state.lightIntensity}%</strong>
         </div>
       </div>
 
-      {/* Interactive Lamp Click Button / Indicator */}
-      <button
-        onClick={() => setIsLampControlOpen((prev) => !prev)}
-        className={`absolute top-4 right-4 z-20 flex items-center gap-2 px-3.5 py-2 rounded-2xl font-bold text-xs shadow-lg backdrop-blur-md transition-all cursor-pointer ${
-          isLampControlOpen
-            ? 'bg-amber-500 text-white ring-4 ring-amber-500/20'
-            : isHoveringLamp
-            ? 'bg-amber-100 text-amber-900 border-2 border-amber-400 scale-105'
-            : 'bg-white/95 text-slate-800 border border-slate-200 hover:bg-amber-50 hover:text-amber-800'
-        }`}
-      >
-        <span className="text-base animate-pulse">💡</span>
-        <span>{isLampControlOpen ? 'Đang chỉnh Đèn' : 'Thao tác trên Đèn'}</span>
-      </button>
+      {/* Action Buttons Top Right: Darkroom Mode + Inquiry + Direct Lamp Controls */}
+      <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
+        {/* Darkroom Mode Toggle Button */}
+        <button
+          onClick={handleToggleDarkroom}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs shadow-md backdrop-blur-md transition-all cursor-pointer ${
+            isDarkroom
+              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
+              : 'bg-white/90 text-slate-800 border border-slate-300 hover:bg-white'
+          }`}
+          title="Bật/Tắt chế độ buồng tối để quan sát rõ chùm tia sáng và hướng tác động"
+        >
+          <span>{isDarkroom ? '🌙' : '☀️'}</span>
+          <span>{isDarkroom ? 'Buồng tối (Bật)' : 'Phòng sáng'}</span>
+        </button>
+
+        {/* Guided Inquiry Prompt Button */}
+        {onOpenInquiry && (
+          <button
+            onClick={onOpenInquiry}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold text-xs shadow-md backdrop-blur-md transition-all cursor-pointer bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border border-purple-400/30"
+          >
+            <span>🔬</span>
+            <span>Nghiên cứu & Giả thuyết</span>
+          </button>
+        )}
+
+        {/* Direct Interactive Lamp Click Button */}
+        <button
+          onClick={() => setIsLampControlOpen((prev) => !prev)}
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold text-xs shadow-md backdrop-blur-md transition-all cursor-pointer ${
+            isLampControlOpen
+              ? 'bg-amber-500 text-slate-950 font-extrabold ring-2 ring-amber-400'
+              : isHoveringLamp
+              ? 'bg-amber-400 text-slate-950 scale-105'
+              : 'bg-slate-900/90 text-amber-300 border border-slate-700 hover:bg-slate-800'
+          }`}
+        >
+          <span className="animate-pulse">💡</span>
+          <span>{isLampControlOpen ? 'Đang chỉnh Đèn' : 'Chỉnh Đèn'}</span>
+        </button>
+      </div>
 
       {/* DIRECT LAMP INTERACTIVE CONTROL POPUP OVERLAY */}
       {isLampControlOpen && onUpdateState && (
@@ -896,23 +1009,24 @@ export default function PhototropismScene({ state, onUpdateState, onAngleUpdate,
         </div>
       )}
 
+      {/* X-Ray Auxin Toast */}
       {state.xrayMode && (
-        <div className="absolute top-16 left-4 bg-amber-50/95 border border-amber-300 backdrop-blur-md px-3.5 py-2.5 rounded-2xl text-xs text-amber-900 shadow-lg max-w-[270px]">
-          <div className="font-bold flex items-center gap-1.5 mb-1 text-amber-700">
-            <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+        <div className="absolute top-16 left-4 bg-amber-950/90 border border-amber-500/50 backdrop-blur-md px-3.5 py-2.5 rounded-2xl text-xs text-amber-200 shadow-xl max-w-[280px]">
+          <div className="font-bold flex items-center gap-1.5 mb-1 text-amber-400">
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
             Chế độ X-Ray: Phân bố Auxin
           </div>
-          <p className="text-[11px] leading-relaxed text-amber-800">
-            Hạt màu vàng thể hiện hormone Auxin dồn về phía bị che sáng, kích hoạt kéo dài tế bào phía tối khiến thân cây cong về phía nguồn sáng.
+          <p className="text-[11px] leading-relaxed text-amber-200/90">
+            Hạt màu vàng thể hiện hormone Auxin dồn về phía khuất sáng, kích hoạt kéo dài tế bào phía tối khiến thân cây cong về phía nguồn sáng.
           </p>
         </div>
       )}
 
       {/* Bottom Hint */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/85 backdrop-blur-sm px-4 py-1.5 rounded-full border border-slate-300 text-[11px] text-slate-600 pointer-events-none shadow-sm flex items-center gap-2">
-        <span>💡 <strong>Mẹo:</strong> Nhấp trực tiếp vào bóng đèn để mở thanh trượt tăng/giảm độ sáng</span>
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-slate-900/85 backdrop-blur-sm px-4 py-1.5 rounded-full border border-slate-700 text-[11px] text-slate-300 pointer-events-none shadow-md flex items-center gap-2">
+        <span>💡 <strong>Buồng tối thí nghiệm:</strong> Ánh sáng đèn là kích thích đơn hướng duy nhất</span>
         <span>•</span>
-        <span>🖱️ Giữ chuột trái để xoay 360°</span>
+        <span>🖱️ Xoay 360° quan sát phía sáng & phía tối</span>
       </div>
     </div>
   );

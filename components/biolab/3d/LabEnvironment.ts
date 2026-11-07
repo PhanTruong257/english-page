@@ -1,28 +1,40 @@
 import * as THREE from 'three';
 
 /**
- * Creates a bright, realistic, modern biology laboratory environment
- * including lab room walls, window daylight, scientific workbench,
- * and background equipment (test tube rack, flasks, beaker, microscope, posters).
+ * Creates a realistic biology laboratory environment.
+ * Supports both bright daylit lab mode and high-contrast darkroom mode
+ * (buồng tối thí nghiệm quang hướng động) where directional light stands out dramatically.
  */
-export function setupLabEnvironment(scene: THREE.Scene) {
-  // 1. Bright Daylight & Room Atmosphere
-  scene.background = new THREE.Color(0xf1f5f9); // Clean slate-100 daylight
-  scene.fog = new THREE.FogExp2(0xf1f5f9, 0.02);
+export function setupLabEnvironment(scene: THREE.Scene, options?: { isDarkroom?: boolean }) {
+  const isDarkroom = !!options?.isDarkroom;
+
+  // 1. Room Background & Fog
+  const dayBg = new THREE.Color(0xf1f5f9);
+  const darkBg = new THREE.Color(0x0a0f1d);
+
+  scene.background = (isDarkroom ? darkBg : dayBg).clone();
+  scene.fog = new THREE.FogExp2(isDarkroom ? 0x0a0f1d : 0xf1f5f9, isDarkroom ? 0.035 : 0.02);
 
   // 2. High-Grade Studio & Lab Lighting
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+  const ambientLight = new THREE.AmbientLight(
+    isDarkroom ? 0x38bdf8 : 0xffffff,
+    isDarkroom ? 0.22 : 0.9
+  );
   scene.add(ambientLight);
 
   // Soft sky/ground bounce light
-  const hemiLight = new THREE.HemisphereLight(0xe2e8f0, 0xf8fafc, 0.65);
+  const hemiLight = new THREE.HemisphereLight(
+    isDarkroom ? 0x1e293b : 0xe2e8f0,
+    isDarkroom ? 0x0f172a : 0xf8fafc,
+    isDarkroom ? 0.18 : 0.65
+  );
   hemiLight.position.set(0, 20, 0);
   scene.add(hemiLight);
 
-  // Main daylight window light
-  const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.4);
+  // Main daylight window light (drastically dimmed in darkroom)
+  const sunLight = new THREE.DirectionalLight(0xfffbeb, isDarkroom ? 0.08 : 1.4);
   sunLight.position.set(6, 12, 8);
-  sunLight.castShadow = true;
+  sunLight.castShadow = !isDarkroom;
   sunLight.shadow.mapSize.width = 2048;
   sunLight.shadow.mapSize.height = 2048;
   sunLight.shadow.camera.near = 0.5;
@@ -34,15 +46,20 @@ export function setupLabEnvironment(scene: THREE.Scene) {
   sunLight.shadow.bias = -0.0005;
   scene.add(sunLight);
 
-  // Fill light from left side to soften shadows
-  const fillLight = new THREE.DirectionalLight(0xe0f2fe, 0.7);
+  // Fill light
+  const fillLight = new THREE.DirectionalLight(0xe0f2fe, isDarkroom ? 0.06 : 0.7);
   fillLight.position.set(-8, 8, 4);
   scene.add(fillLight);
 
   // Ceiling soft overhead lab tube lights
-  const ceilingLight = new THREE.PointLight(0xffffff, 0.8, 15);
+  const ceilingLight = new THREE.PointLight(0xffffff, isDarkroom ? 0.12 : 0.8, 15);
   ceilingLight.position.set(0, 7, 1);
   scene.add(ceilingLight);
+
+  // Subtle darkroom blue accent rim light to define silhouettes of background equipment
+  const rimLight = new THREE.DirectionalLight(0x0284c7, isDarkroom ? 0.35 : 0.0);
+  rimLight.position.set(-6, 8, -4);
+  scene.add(rimLight);
 
   // 3. Lab Room Architecture (Walls, Floor, Baseboard)
   const roomGroup = new THREE.Group();
@@ -53,11 +70,11 @@ export function setupLabEnvironment(scene: THREE.Scene) {
   wallCanvas.width = 512;
   wallCanvas.height = 512;
   const ctx = wallCanvas.getContext('2d')!;
-  ctx.fillStyle = '#f8fafc';
+  ctx.fillStyle = isDarkroom ? '#0f172a' : '#f8fafc';
   ctx.fillRect(0, 0, 512, 512);
 
   // Draw light subtle tile lines
-  ctx.strokeStyle = '#e2e8f0';
+  ctx.strokeStyle = isDarkroom ? '#1e293b' : '#e2e8f0';
   ctx.lineWidth = 2;
   const tileSize = 64;
   for (let x = 0; x <= 512; x += tileSize) {
@@ -81,7 +98,7 @@ export function setupLabEnvironment(scene: THREE.Scene) {
   const backWallGeo = new THREE.PlaneGeometry(24, 14);
   const backWallMat = new THREE.MeshStandardMaterial({
     map: wallTexture,
-    roughness: 0.8,
+    roughness: 0.85,
     metalness: 0.05,
   });
   const backWall = new THREE.Mesh(backWallGeo, backWallMat);
@@ -91,8 +108,8 @@ export function setupLabEnvironment(scene: THREE.Scene) {
   // Floor (Clean lab vinyl / epoxy floor)
   const floorGeo = new THREE.PlaneGeometry(24, 18);
   const floorMat = new THREE.MeshStandardMaterial({
-    color: 0x94a3b8,
-    roughness: 0.4,
+    color: isDarkroom ? 0x1e293b : 0x94a3b8,
+    roughness: 0.45,
     metalness: 0.1,
   });
   const floor = new THREE.Mesh(floorGeo, floorMat);
@@ -103,7 +120,7 @@ export function setupLabEnvironment(scene: THREE.Scene) {
 
   // Baseboard trim at bottom of wall
   const baseboardGeo = new THREE.BoxGeometry(24, 0.3, 0.1);
-  const baseboardMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5 });
+  const baseboardMat = new THREE.MeshStandardMaterial({ color: isDarkroom ? 0x0f172a : 0x475569, roughness: 0.5 });
   const baseboard = new THREE.Mesh(baseboardGeo, baseboardMat);
   baseboard.position.set(0, -1.35, -4.45);
   roomGroup.add(baseboard);
@@ -113,7 +130,7 @@ export function setupLabEnvironment(scene: THREE.Scene) {
   posterCanvas.width = 512;
   posterCanvas.height = 340;
   const pCtx = posterCanvas.getContext('2d')!;
-  pCtx.fillStyle = '#ffffff';
+  pCtx.fillStyle = isDarkroom ? '#1e293b' : '#ffffff';
   pCtx.fillRect(0, 0, 512, 340);
   pCtx.fillStyle = '#059669';
   pCtx.fillRect(0, 0, 512, 48);
@@ -122,18 +139,17 @@ export function setupLabEnvironment(scene: THREE.Scene) {
   pCtx.fillText('BIOLAB 3D • PLANT PHYSIOLOGY', 20, 32);
 
   // Simple botanical illustration on poster
-  pCtx.fillStyle = '#f0fdf4';
+  pCtx.fillStyle = isDarkroom ? '#0f172a' : '#f0fdf4';
   pCtx.fillRect(16, 64, 480, 260);
   pCtx.fillStyle = '#10b981';
   pCtx.font = 'bold 15px sans-serif';
   pCtx.fillText('PHOTOSYNTHESIS & TROPISM MECHANISMS', 32, 95);
-  pCtx.fillStyle = '#64748b';
+  pCtx.fillStyle = isDarkroom ? '#94a3b8' : '#64748b';
   pCtx.font = '12px sans-serif';
   pCtx.fillText('6CO2 + 12H2O + Light  →  C6H12O6 + 6O2 + 6H2O', 32, 125);
   pCtx.fillText('Auxin Asymmetric Redistribution (PIN Transporters)', 32, 150);
   pCtx.fillText('Positive Hydrotropism • Positive Gravitropism (Statoliths)', 32, 175);
 
-  // Diagram icon box
   pCtx.fillStyle = '#10b981';
   pCtx.beginPath();
   pCtx.arc(380, 220, 45, 0, Math.PI * 2);
@@ -146,28 +162,27 @@ export function setupLabEnvironment(scene: THREE.Scene) {
   const posterGeo = new THREE.PlaneGeometry(4.2, 2.8);
   const posterMat = new THREE.MeshStandardMaterial({
     map: posterTexture,
-    roughness: 0.3,
+    roughness: 0.35,
   });
   const poster = new THREE.Mesh(posterGeo, posterMat);
   poster.position.set(-2.8, 4.2, -4.42);
   roomGroup.add(poster);
 
-  // Poster frame
   const frameGeo = new THREE.BoxGeometry(4.3, 2.9, 0.05);
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4 });
+  const frameMat = new THREE.MeshStandardMaterial({ color: isDarkroom ? 0x0f172a : 0x334155, roughness: 0.4 });
   const posterFrame = new THREE.Mesh(frameGeo, frameMat);
   posterFrame.position.set(-2.8, 4.2, -4.45);
   roomGroup.add(posterFrame);
 
-  // 4. Heavy Duty Laboratory Workbench (Bàn thí nghiệm chuyên dụng)
+  // 4. Heavy Duty Laboratory Workbench
   const benchGroup = new THREE.Group();
   scene.add(benchGroup);
 
-  // Table Top: White chemical-resistant phenolic resin slab
+  // Table Top: Chemical-resistant resin slab
   const tableTopGeo = new THREE.BoxGeometry(9.0, 0.16, 4.6);
   const tableTopMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.2,
+    color: isDarkroom ? 0xdfe7ef : 0xffffff,
+    roughness: 0.25,
     metalness: 0.08,
   });
   const tableTop = new THREE.Mesh(tableTopGeo, tableTopMat);
@@ -185,7 +200,7 @@ export function setupLabEnvironment(scene: THREE.Scene) {
 
   // Steel Legs & Frame underneath
   const legGeo = new THREE.BoxGeometry(0.12, 1.35, 0.12);
-  const legMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.3 });
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.3 });
 
   const legPositions = [
     [-4.3, -0.82, -1.8],
@@ -202,7 +217,7 @@ export function setupLabEnvironment(scene: THREE.Scene) {
 
   // Drawer Cabinet Unit on right side of desk
   const cabinetGeo = new THREE.BoxGeometry(2.0, 1.25, 3.8);
-  const cabinetMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 });
+  const cabinetMat = new THREE.MeshStandardMaterial({ color: isDarkroom ? 0x1e293b : 0xf8fafc, roughness: 0.4 });
   const cabinet = new THREE.Mesh(cabinetGeo, cabinetMat);
   cabinet.position.set(3.2, -0.78, 0.3);
   cabinet.castShadow = true;
@@ -218,14 +233,13 @@ export function setupLabEnvironment(scene: THREE.Scene) {
     benchGroup.add(handle);
   }
 
-  // 5. Realistic Background Props on Workbench
+  // 5. Background Props on Workbench
 
-  // (A) Test Tube Rack with Colorful Reagent Tubes (Left background)
+  // (A) Test Tube Rack with Solutions
   const rackGroup = new THREE.Group();
   rackGroup.position.set(-3.4, 0, -1.2);
   benchGroup.add(rackGroup);
 
-  // Wooden rack base & top bar
   const rackWoodMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.7 });
   const rackBase = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.06, 0.5), rackWoodMat);
   rackBase.position.y = 0.03;
@@ -243,7 +257,6 @@ export function setupLabEnvironment(scene: THREE.Scene) {
   rackPostR.position.set(0.72, 0.35, 0);
   rackGroup.add(rackPostR);
 
-  // 5 Glass Test Tubes with Colorful Solutions
   const tubeGlassMat = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
     transmission: 0.92,
@@ -256,12 +269,10 @@ export function setupLabEnvironment(scene: THREE.Scene) {
   const tubeColors = [0x38bdf8, 0x10b981, 0xf59e0b, 0xec4899, 0xa855f7];
   for (let i = 0; i < 5; i++) {
     const tx = -0.55 + i * 0.28;
-    // Glass tube
     const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.8, 16), tubeGlassMat);
     tube.position.set(tx, 0.42, 0);
     rackGroup.add(tube);
 
-    // Colored chemical solution inside
     const liqMat = new THREE.MeshStandardMaterial({
       color: tubeColors[i],
       transparent: true,
@@ -273,7 +284,7 @@ export function setupLabEnvironment(scene: THREE.Scene) {
     rackGroup.add(liquid);
   }
 
-  // (B) Erlenmeyer Flask (Bình tam giác chứa hóa chất)
+  // (B) Erlenmeyer Flask
   const flaskGroup = new THREE.Group();
   flaskGroup.position.set(-2.2, 0, -1.3);
   benchGroup.add(flaskGroup);
@@ -287,7 +298,6 @@ export function setupLabEnvironment(scene: THREE.Scene) {
   flaskNeck.position.y = 0.72;
   flaskGroup.add(flaskNeck);
 
-  // Bright Cyan copper sulfate solution inside flask
   const flaskLiqGeo = new THREE.ConeGeometry(0.38, 0.4, 24);
   const flaskLiqMat = new THREE.MeshStandardMaterial({
     color: 0x06b6d4,
@@ -299,7 +309,7 @@ export function setupLabEnvironment(scene: THREE.Scene) {
   flaskLiq.position.y = 0.2;
   flaskGroup.add(flaskLiq);
 
-  // (C) Microscope (Kính hiển vi quang học trong góc phòng lab)
+  // (C) Microscope
   const scopeGroup = new THREE.Group();
   scopeGroup.position.set(3.5, 0, -1.0);
   scopeGroup.rotation.y = -Math.PI / 4;
@@ -370,8 +380,24 @@ export function setupLabEnvironment(scene: THREE.Scene) {
   pen.position.set(0.2, 0.04, 0.1);
   notebookGroup.add(pen);
 
+  const setDarkroom = (dark: boolean) => {
+    scene.background = (dark ? darkBg : dayBg).clone();
+    if (scene.fog) {
+      scene.fog.color = (dark ? darkBg : dayBg).clone();
+      (scene.fog as THREE.FogExp2).density = dark ? 0.035 : 0.02;
+    }
+    ambientLight.color.setHex(dark ? 0x38bdf8 : 0xffffff);
+    ambientLight.intensity = dark ? 0.22 : 0.9;
+    hemiLight.intensity = dark ? 0.18 : 0.65;
+    sunLight.intensity = dark ? 0.08 : 1.4;
+    fillLight.intensity = dark ? 0.06 : 0.7;
+    ceilingLight.intensity = dark ? 0.12 : 0.8;
+    rimLight.intensity = dark ? 0.35 : 0.0;
+  };
+
   return {
     roomGroup,
     benchGroup,
+    setDarkroom,
   };
 }

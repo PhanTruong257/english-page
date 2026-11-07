@@ -13,8 +13,12 @@ import {
 import LabAnalyticsChart from './LabAnalyticsChart';
 import PhotosynthesisRelationshipMap from './PhotosynthesisRelationshipMap';
 
+type SidebarTab = 'controls' | 'inquiry' | 'analytics' | 'mechanism' | 'missions';
+
 interface Props {
   activeLab: LabId;
+  activeTab?: SidebarTab;
+  onTabChange?: (tab: SidebarTab) => void;
   photoState: PhototropismState;
   onUpdatePhotoState: (updater: (prev: PhototropismState) => PhototropismState) => void;
   photoCurrentAngle: number;
@@ -29,6 +33,8 @@ interface Props {
 
 export default function LabSidebar({
   activeLab,
+  activeTab: propActiveTab,
+  onTabChange,
   photoState,
   onUpdatePhotoState,
   photoCurrentAngle,
@@ -38,7 +44,21 @@ export default function LabSidebar({
   onUpdateHydroState,
   hydroCurrentAngle,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<'controls' | 'analytics' | 'mechanism' | 'missions'>('controls');
+  const [localActiveTab, setLocalActiveTab] = useState<SidebarTab>('controls');
+  const activeTab = propActiveTab ?? localActiveTab;
+
+  const setActiveTab = (tab: SidebarTab) => {
+    setLocalActiveTab(tab);
+    if (onTabChange) onTabChange(tab);
+  };
+
+  // Inquiry Guided State
+  const [selectedTopicId, setSelectedTopicId] = useState<string>('topic_p1');
+  const [selectedHypothesis, setSelectedHypothesis] = useState<Record<string, string>>({});
+  const [selectedPrediction, setSelectedPrediction] = useState<Record<string, string>>({});
+  const [inquiryChecked, setInquiryChecked] = useState<Record<string, boolean>>({});
+  const [inquiryAnswerSelected, setInquiryAnswerSelected] = useState<Record<number, number>>({});
+  const [inquirySaved, setInquirySaved] = useState(false);
 
   // Quiz state
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
@@ -53,7 +73,7 @@ export default function LabSidebar({
       particleCount: 50,
       spread: 60,
       origin: { y: 0.7 },
-      colors: ['#10b981', '#38bdf8', '#f59e0b', '#ec4899'],
+      colors: ['#10b981', '#38bdf8', '#f59e0b', '#ec4899', '#8b5cf6'],
     });
   };
 
@@ -102,6 +122,193 @@ export default function LabSidebar({
       }
     }
   }, [photoState, synthState, hydroState, activeLab, completedMissions]);
+
+  // Guided Inquiry Topics for Phototropism
+  const phototropismInquiryTopics = [
+    {
+      id: 'topic_p1',
+      title: '1. Hướng chiếu sáng và góc uốn thân',
+      question: 'Khi chiếu sáng đơn hướng từ một bên, thân cây mầm sẽ phản ứng như thế nào và nguyên nhân là gì?',
+      context: 'Đặt cây mầm trong buồng tối với bóng đèn chiếu lệch một góc sang trái hoặc phải.',
+      hypotheses: [
+        {
+          id: 'h1_1',
+          text: 'Thân cây mầm sẽ uốn cong về phía nguồn sáng (Tính hướng sáng dương) do sự dãn dài không đều giữa hai phía.',
+          isSupported: true,
+        },
+        {
+          id: 'h1_2',
+          text: 'Thân cây sẽ uốn cong quay lưng lại với nguồn sáng để tránh nhiệt độ cao (Tính hướng sáng âm).',
+          isSupported: false,
+        },
+        {
+          id: 'h1_3',
+          text: 'Thân cây luôn luôn mọc thẳng đứng vuông góc với mặt đất, không chịu tác động của ánh sáng đơn hướng.',
+          isSupported: false,
+        },
+      ],
+      predictions: [
+        { id: 'pred1_1', text: 'Góc lệch của thân cây sẽ tỷ lệ thuận với góc xoay của nguồn sáng và độ sáng của đèn.' },
+        { id: 'pred1_2', text: 'Cây sẽ uốn cong ngay lập tức trong 1 giây mà không cần thời gian thích ứng.' },
+        { id: 'pred1_3', text: 'Cây chỉ cong khi đèn được đặt ở đỉnh đầu (góc 0°).' },
+      ],
+      inquiryQuestions: [
+        {
+          id: 101,
+          question: 'Tại sao thân cây lại uốn cong về phía có ánh sáng? Phía chiếu sáng hay phía khuất sáng có tế bào dãn dài nhanh hơn?',
+          options: [
+            'Phía chiếu sáng dãn dài nhanh hơn kéo thân cây uốn sang',
+            'Phía khuất sáng (tối) có nồng độ auxin cao hơn, kích thích tế bào dãn dài nhanh hơn phía sáng, làm thân uốn cong về phía sáng',
+            'Cả hai phía dài bằng nhau nhưng phía sáng bị teo lại do khô nước',
+          ],
+          correctIndex: 1,
+          explanation: 'Dưới ánh sáng đơn hướng, auxin vận chuyển chủ động sang phía tối nhờ protein PIN. Auxin kích hoạt bơm proton H⁺ làm dãn thành cellulose (Thuyết sinh trưởng axit), tế bào phía tối dài nhanh hơn đẩy cây uốn về phía sáng.',
+        },
+        {
+          id: 102,
+          question: 'Dưới chế độ X-Ray Auxin, khi chỉnh góc đèn sang phải (+35°), bạn quan sát thấy hiện tượng gì ở các hạt Auxin?',
+          options: [
+            'Hạt auxin biến mất hoàn toàn',
+            'Hạt auxin dồn mạnh sang nửa thân bên trái (phía khuất sáng), chứng minh sự phân bố bất đối xứng',
+            'Hạt auxin dồn hết về phía bên phải (phía có đèn chiếu)',
+          ],
+          correctIndex: 1,
+          explanation: 'Quang thụ thể Phototropin kích hoạt sự vận chuyển dòng auxin dồn sang phía tối, tạo gradien nồng độ hormone kích thích dãn dài bất đối xứng.',
+        },
+      ],
+      realWorld: {
+        question: 'Vì sao chậu cây cảnh đặt trong phòng bên bậu cửa sổ sau vài ngày luôn mọc nghiêng hẳn ra ngoài? Người trồng cây cần làm gì?',
+        insight: 'Do ánh sáng từ ngoài cửa sổ chiếu đơn hướng làm ngọn cây hướng sáng dương. Để cây mọc thẳng đẹp cân đối, người chăm sóc cần định kỳ xoay chậu 180° sau mỗi vài ngày để các phía của cây đều nhận sáng luân phiên.',
+      },
+    },
+    {
+      id: 'topic_p2',
+      title: '2. Thí nghiệm Darwin: Vị trí cảm nhận ánh sáng',
+      question: 'Bộ phận nào của cây mầm giữ vai trò tiếp nhận kích thích ánh sáng để ra lệnh uốn cong?',
+      context: 'Năm 1880, Charles Darwin thực hiện các phép xử lý: để nguyên, cắt bỏ chóp, bọc mũ đen và bọc mũ trong suốt.',
+      hypotheses: [
+        {
+          id: 'h2_1',
+          text: 'Chóp bao lá mầm là nơi duy nhất cảm nhận kích thích ánh sáng rồi truyền tín hiệu xuống vùng dãn dài bên dưới.',
+          isSupported: true,
+        },
+        {
+          id: 'h2_2',
+          text: 'Vùng thân dãn dài bên dưới mới là nơi cảm nhận ánh sáng vì đó là nơi trực tiếp uốn cong.',
+          isSupported: false,
+        },
+        {
+          id: 'h2_3',
+          text: 'Toàn bộ thân và rễ đều tiếp nhận ánh sáng ngang nhau.',
+          isSupported: false,
+        },
+      ],
+      predictions: [
+        { id: 'pred2_1', text: 'Nếu cắt bỏ chóp ngọn hoặc bọc mũ đen che tối chóp ngọn, cây sẽ mất hoàn toàn tính hướng sáng (mọc thẳng).' },
+        { id: 'pred2_2', text: 'Cắt bỏ chóp ngọn sẽ làm cây uốn cong mạnh hơn bình thường.' },
+      ],
+      inquiryQuestions: [
+        {
+          id: 201,
+          question: 'Khi chụp mũ trong suốt (Transparent Cap) che ngọn, tại sao cây vẫn uốn cong bình thường theo nguồn sáng?',
+          options: [
+            'Vì mũ trong suốt cho phép photon ánh sáng xuyên qua tác động lên thụ thể phototropin ở chóp ngọn',
+            'Vì mũ trong suốt tạo ra auxin thay thế cho cây',
+            'Vì chóp ngọn không có tác dụng gì',
+          ],
+          correctIndex: 0,
+          explanation: 'Thí nghiệm đối chứng với mũ trong suốt chứng minh rằng tác nhân che tối (mũ đen) làm mất phản ứng hướng sáng là do ngăn cản ánh sáng tới chóp ngọn, chứ không phải do sức nặng cơ học của mũ.',
+        },
+      ],
+      realWorld: {
+        question: 'Tại sao khi nông dân bấm ngọn (cắt chóp sinh trưởng) của cây trồng (như ớt, chè, cúc) thì cây lại đâm nhiều cành ngang?',
+        insight: 'Chóp ngọn là nơi sản sinh auxin ức chế chồi bên (ưu thế ngọn). Cắt chóp ngọn làm giảm auxin, giải phóng các chồi bên phát triển thành nhiều cành nhánh xum xuê tăng năng suất.',
+      },
+    },
+    {
+      id: 'topic_p3',
+      title: '3. Bản chất tín hiệu hóa học (Thí nghiệm Boysen-Jensen)',
+      question: 'Tín hiệu từ chóp truyền xuống thân là tín hiệu điện học hay chất hóa học hòa tan khuếch tán?',
+      context: 'Peter Boysen-Jensen chèn miếng thạch agar (cho nước thấm qua) hoặc phiến mica (chống thấm) vào dưới chóp ngọn.',
+      hypotheses: [
+        {
+          id: 'h3_1',
+          text: 'Tín hiệu là một chất hóa học (Auxin) hòa tan, có thể khuếch tán tự do qua khối thạch Agar nhưng bị chặn bởi phiến Mica.',
+          isSupported: true,
+        },
+        {
+          id: 'h3_2',
+          text: 'Tín hiệu là xung điện thần kinh truyền dọc theo sợi cơ sinh học.',
+          isSupported: false,
+        },
+      ],
+      predictions: [
+        { id: 'pred3_1', text: 'Chèn miếng thạch Agar thì cây vẫn giữ được tính hướng sáng; chèn phiến Mica ở phía tối thì cây mất phản ứng uốn cong.' },
+      ],
+      inquiryQuestions: [
+        {
+          id: 301,
+          question: 'Tại sao khi chèn phiến mica vào phía khuất sáng (shaded side), cây lại không thể uốn cong được?',
+          options: [
+            'Vì mica chặn dòng vận chuyển của Auxin từ chóp ngọn đi xuống vùng dãn dài ở phía tối',
+            'Vì mica làm gãy thân cây',
+            'Vì mica hút hết chất dinh dưỡng của đất',
+          ],
+          correctIndex: 0,
+          explanation: 'Phiến mica không cho nước và chất tan thấm qua. Khi chặn dòng auxin ở phía tối, tế bào phía tối không nhận được auxin kích thích dãn dài nên cây không thể uốn cong.',
+        },
+      ],
+      realWorld: {
+        question: 'Trong nông nghiệp công nghệ cao, người ta phun thuốc điều hòa sinh trưởng chứa auxin tổng hợp nhằm mục đích gì?',
+        insight: 'Auxin tổng hợp (như NAA, 2,4-D ở nồng độ thích hợp) được dùng để kích thích ra rễ cành giâm, kích thích đậu quả không hạt và ngăn rụng hoa/quả non.',
+      },
+    },
+    {
+      id: 'topic_p4',
+      title: '4. Tác động của dải màu quang phổ ánh sáng',
+      question: 'Màu sắc ánh sáng nào kích hoạt phản ứng hướng sáng mạnh nhất?',
+      context: 'Chiếu sáng cây mầm bằng ánh sáng Trắng, Xanh lam (Blue), Đỏ (Red) hoặc Tắt đèn.',
+      hypotheses: [
+        {
+          id: 'h4_1',
+          text: 'Ánh sáng xanh lam (Blue light 400-500 nm) kích hoạt tính hướng sáng mạnh nhất do sắc tố quang thụ thể Phototropin hấp thụ đỉnh ở dải sóng này.',
+          isSupported: true,
+        },
+        {
+          id: 'h4_2',
+          text: 'Ánh sáng đỏ (Red light) kích thích mạnh nhất vì có bước sóng dài nhất.',
+          isSupported: false,
+        },
+        {
+          id: 'h4_3',
+          text: 'Mọi màu sắc ánh sáng đều kích thích hướng sáng như nhau.',
+          isSupported: false,
+        },
+      ],
+      predictions: [
+        { id: 'pred4_1', text: 'Khi chuyển sang đèn màu Xanh lam, cây sẽ uốn cong với góc lớn nhất; khi chuyển sang đèn Đỏ cây uốn cong rất yếu.' },
+      ],
+      inquiryQuestions: [
+        {
+          id: 401,
+          question: 'Sắc tố quang thụ thể nào ở thực vật chịu trách nhiệm tiếp nhận ánh sáng xanh lam để định hướng uốn cong?',
+          options: [
+            'Phototropin 1 và Phototropin 2 (thụ thể flavoprotein hấp thụ ánh sáng xanh)',
+            'Diệp lục a (Chlorophyll a)',
+            'Carotenoid tạo màu vàng cam',
+          ],
+          correctIndex: 0,
+          explanation: 'Phototropin là thụ thể ánh sáng xanh chuyên biệt gắn trên màng sinh chất. Khi hấp thụ photon xanh lam, phototropin tự phosphoryl hóa và kích hoạt bơm PIN tái phân bố auxin.',
+        },
+      ],
+      realWorld: {
+        question: 'Trong các nhà kính trồng rau thông minh, tại sao người ta thường dùng đèn LED kết hợp ánh sáng Xanh lam và Đỏ?',
+        insight: 'Ánh sáng đỏ giúp kích thích quang hợp tạo sinh khối tối đa, còn ánh sáng xanh lam điều khiển hình thái thân lá thẳng khỏe, mở khí khổng và hướng sáng tối ưu.',
+      },
+    },
+  ];
+
+  const currentTopic = phototropismInquiryTopics.find((t) => t.id === selectedTopicId) || phototropismInquiryTopics[0];
 
   // Quizzes list per lab
   const quizzes: Record<LabId, QuizQuestion[]> = {
@@ -277,10 +484,10 @@ export default function LabSidebar({
   return (
     <div className="flex flex-col h-full bg-white/95 border border-slate-200/90 rounded-2xl overflow-hidden shadow-xl shadow-slate-200/50 backdrop-blur-xl text-slate-800">
       {/* Tab Navigation */}
-      <div className="flex border-b border-slate-200/90 bg-slate-50/90 p-1.5 gap-1.5">
+      <div className="flex border-b border-slate-200/90 bg-slate-50/90 p-1.5 gap-1 overflow-x-auto custom-scrollbar">
         <button
           onClick={() => setActiveTab('controls')}
-          className={`flex-1 py-2 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 py-2 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
             activeTab === 'controls'
               ? 'bg-white text-emerald-700 border border-slate-200/90 shadow-xs font-bold'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium'
@@ -290,8 +497,19 @@ export default function LabSidebar({
         </button>
 
         <button
+          onClick={() => setActiveTab('inquiry')}
+          className={`flex-1 py-2 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+            activeTab === 'inquiry'
+              ? 'bg-white text-indigo-700 border border-slate-200/90 shadow-xs font-bold'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium'
+          }`}
+        >
+          <span>🔬</span> Nghiên cứu
+        </button>
+
+        <button
           onClick={() => setActiveTab('analytics')}
-          className={`flex-1 py-2 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 py-2 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
             activeTab === 'analytics'
               ? 'bg-white text-sky-700 border border-slate-200/90 shadow-xs font-bold'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium'
@@ -302,7 +520,7 @@ export default function LabSidebar({
 
         <button
           onClick={() => setActiveTab('mechanism')}
-          className={`flex-1 py-2 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 py-2 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
             activeTab === 'mechanism'
               ? 'bg-white text-amber-700 border border-slate-200/90 shadow-xs font-bold'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium'
@@ -313,7 +531,7 @@ export default function LabSidebar({
 
         <button
           onClick={() => setActiveTab('missions')}
-          className={`flex-1 py-2 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 py-2 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
             activeTab === 'missions'
               ? 'bg-white text-purple-700 border border-slate-200/90 shadow-xs font-bold'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium'
@@ -693,6 +911,245 @@ export default function LabSidebar({
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* TAB: GUIDED SCIENTIFIC INQUIRY (Nghiên cứu & Giả thuyết) */}
+        {activeTab === 'inquiry' && (
+          <div className="space-y-4">
+            {/* Header intro */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 border border-indigo-200/80 space-y-1.5 shadow-xs">
+              <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs uppercase tracking-wider">
+                <span className="text-base">🔬</span> Phương Pháp Nghiên Cứu Khoa Học
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Học sinh tự chọn <strong>giả thuyết</strong>, <strong>dự đoán</strong> kết quả trước khi chạy mô phỏng, sau đó <strong>đối chiếu với thực tế</strong> và <strong>phân tích nguyên nhân</strong> cơ chế tế bào.
+              </p>
+            </div>
+
+            {/* Topic Selector */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <span>📌</span> Chọn Câu Hỏi Nghiên Cứu:
+              </label>
+              <div className="grid grid-cols-1 gap-1.5">
+                {phototropismInquiryTopics.map((topic) => (
+                  <button
+                    key={topic.id}
+                    onClick={() => {
+                      setSelectedTopicId(topic.id);
+                      setInquirySaved(false);
+                    }}
+                    className={`p-2.5 rounded-xl text-left border transition cursor-pointer flex items-center justify-between text-xs ${
+                      selectedTopicId === topic.id
+                        ? 'bg-indigo-50 border-indigo-400 text-indigo-950 font-bold ring-2 ring-indigo-500/20 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>{topic.title}</span>
+                    {selectedTopicId === topic.id && <span className="text-indigo-600 font-bold text-xs">● Đang xét</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Problem Statement Card */}
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+              <div className="text-[10px] uppercase font-bold text-indigo-600 tracking-wider">Câu hỏi nghiên cứu:</div>
+              <div className="text-xs font-extrabold text-slate-900 leading-snug">{currentTopic.question}</div>
+              <p className="text-[11px] text-slate-500 italic">Bối cảnh: {currentTopic.context}</p>
+            </div>
+
+            {/* Step 1: Formulate Hypothesis */}
+            <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold">1</span>
+                  Đặt Giả Thuyết Khoa Học (Hypothesis):
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500">Em hãy chọn giả thuyết mà mình cho là hợp lý nhất để kiểm chứng:</p>
+
+              <div className="space-y-1.5 pt-1">
+                {currentTopic.hypotheses.map((h) => {
+                  const isSelected = selectedHypothesis[currentTopic.id] === h.id;
+                  return (
+                    <button
+                      key={h.id}
+                      onClick={() => setSelectedHypothesis((prev) => ({ ...prev, [currentTopic.id]: h.id }))}
+                      className={`w-full text-left p-2.5 rounded-xl text-xs border transition cursor-pointer flex items-start gap-2 ${
+                        isSelected
+                          ? 'bg-indigo-100 border-indigo-500 text-indigo-950 font-bold ring-1 ring-indigo-400'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded-full mt-0.5 border flex items-center justify-center text-[10px] ${isSelected ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-300'}`}>
+                        {isSelected ? '✓' : ''}
+                      </span>
+                      <span className="flex-1 leading-relaxed">{h.text}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Step 2: Prediction */}
+            <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold">2</span>
+                  Dự Đoán Kết Quả Thực Nghiệm (Prediction):
+                </span>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                {currentTopic.predictions.map((p) => {
+                  const isSelected = selectedPrediction[currentTopic.id] === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setSelectedPrediction((prev) => ({ ...prev, [currentTopic.id]: p.id }))}
+                      className={`w-full text-left p-2.5 rounded-xl text-xs border transition cursor-pointer flex items-start gap-2 ${
+                        isSelected
+                          ? 'bg-purple-100 border-purple-500 text-purple-950 font-bold ring-1 ring-purple-400'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded-full mt-0.5 border flex items-center justify-center text-[10px] ${isSelected ? 'bg-purple-600 text-white border-purple-600' : 'border-slate-300'}`}>
+                        {isSelected ? '✓' : ''}
+                      </span>
+                      <span className="flex-1 leading-relaxed">{p.text}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Step 3: Live Evidence & Comparison */}
+            <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold">3</span>
+                  Đối Chiếu Dữ Liệu Thực Nghiệm 3D:
+                </span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  Thời Gian Thực
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                  <div className="text-[10px] text-slate-500 font-semibold">Góc nguồn sáng (Đèn):</div>
+                  <div className="font-mono text-base font-bold text-amber-600">{photoState.lightAngle}°</div>
+                </div>
+                <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                  <div className="text-[10px] text-slate-500 font-semibold">Góc uốn thân thực tế:</div>
+                  <div className="font-mono text-base font-bold text-emerald-600">{photoCurrentAngle}°</div>
+                </div>
+                <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                  <div className="text-[10px] text-slate-500 font-semibold">Phương pháp xử lý:</div>
+                  <div className="text-[11px] font-bold text-slate-800 truncate">{photoState.plantTreatment}</div>
+                </div>
+                <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                  <div className="text-[10px] text-slate-500 font-semibold">Màu quang phổ:</div>
+                  <div className="text-[11px] font-bold text-sky-600 uppercase">{photoState.lightColor}</div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setInquiryChecked((prev) => ({ ...prev, [currentTopic.id]: true }));
+                  triggerConfetti();
+                }}
+                disabled={!selectedHypothesis[currentTopic.id]}
+                className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-md transition disabled:opacity-50 cursor-pointer mt-1"
+              >
+                🔍 Kiểm Chứng Giả Thuyết & Luận Giải
+              </button>
+
+              {inquiryChecked[currentTopic.id] && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                    <span>✅</span> Kết Luận Kiểm Chứng Thực Nghiệm:
+                  </div>
+                  <p className="text-[11px] text-emerald-800 leading-relaxed font-medium">
+                    {selectedHypothesis[currentTopic.id] === currentTopic.hypotheses.find((h) => h.isSupported)?.id
+                      ? 'Tuyệt vời! Dữ liệu thực nghiệm 3D đã chứng minh giả thuyết của bạn hoàn toàn chính xác. Thân cây uốn cong sinh học do sự tái phân bố hoocmôn Auxin dồn về phía tối.'
+                      : 'Kết quả quan sát 3D cho thấy giả thuyết này bị bác bỏ. Thân cây thực tế đã uốn cong theo cơ chế hướng sáng dương dưới sự điều hòa của Auxin.'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Step 4: Causal Analysis Questions */}
+            <div className="space-y-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold">4</span>
+                  Câu Hỏi Gợi Mở & Phân Tích Nguyên Nhân:
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {currentTopic.inquiryQuestions.map((q, idx) => (
+                  <div key={q.id} className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                    <div className="text-xs font-bold text-slate-900 leading-snug">
+                      <span className="text-indigo-600">Câu {idx + 1}:</span> {q.question}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {q.options.map((opt, optIdx) => {
+                        const isAnsSelected = inquiryAnswerSelected[q.id] === optIdx;
+                        let btnStyle = 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50';
+
+                        if (isAnsSelected) {
+                          btnStyle = optIdx === q.correctIndex
+                            ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold ring-1 ring-emerald-300'
+                            : 'bg-rose-50 border-rose-300 text-rose-800';
+                        }
+
+                        return (
+                          <button
+                            key={optIdx}
+                            onClick={() => setInquiryAnswerSelected((prev) => ({ ...prev, [q.id]: optIdx }))}
+                            className={`w-full text-left p-2 rounded-lg text-xs border transition flex items-center justify-between cursor-pointer ${btnStyle}`}
+                          >
+                            <span>{opt}</span>
+                            {isAnsSelected && optIdx === q.correctIndex && <span>✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {inquiryAnswerSelected[q.id] !== undefined && (
+                      <div className="text-[11px] text-slate-700 bg-amber-50/80 p-2.5 rounded-lg border border-amber-200 leading-relaxed font-medium">
+                        💡 <strong>Cơ chế sinh học:</strong> {q.explanation}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Real World Application */}
+              <div className="p-3 rounded-xl bg-purple-50/80 border border-purple-200 space-y-1">
+                <div className="text-[11px] font-bold text-purple-900 flex items-center gap-1.5">
+                  <span>🌍</span> Vận Dụng Đời Sống Thực Tiễn:
+                </div>
+                <div className="text-[11px] font-semibold text-slate-800">{currentTopic.realWorld.question}</div>
+                <p className="text-[10px] text-purple-950/80 leading-relaxed pt-0.5">{currentTopic.realWorld.insight}</p>
+              </div>
+
+              {/* Save to Lab Report Button */}
+              <button
+                onClick={() => {
+                  setInquirySaved(true);
+                  triggerConfetti();
+                }}
+                className="w-full py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs rounded-xl shadow-sm hover:from-emerald-700 hover:to-teal-700 transition cursor-pointer"
+              >
+                {inquirySaved ? '✅ Đã lưu kết quả nghiên cứu vào Sổ tay!' : '💾 Lưu kết quả nghiên cứu vào Sổ tay phòng Lab'}
+              </button>
+            </div>
           </div>
         )}
 

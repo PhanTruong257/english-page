@@ -154,6 +154,15 @@ export default function LabReportModal({
                 <p>
                   <strong>3. Kết luận & Giải thích cơ chế:</strong> Khi chiếu sáng từ một phía, quang thụ thể phototropin kích hoạt sự vận chuyển auxin tích tụ dồn sang phía tối. Nồng độ auxin cao ở phía tối kích thích các tế bào tại đây dãn dài nhanh hơn tế bào phía sáng, kết quả là thân cây uốn cong về phía nguồn sáng (Tính hướng sáng dương).
                 </p>
+
+                <div className="p-3 bg-slate-50 print:bg-gray-100 rounded-xl border border-slate-200 print:border-gray-300 space-y-1">
+                  <div className="font-bold text-slate-800 print:text-black">4. Kết quả kiểm chứng giả thuyết & Vận dụng thực tiễn:</div>
+                  <ul className="list-disc pl-5 space-y-1 text-slate-600 print:text-gray-700 text-[11px]">
+                    <li><strong>Giả thuyết hướng tính:</strong> Đã chứng minh thực nghiệm thành công giả thuyết thân cây có tính hướng sáng dương khi chiếu sáng đơn hướng (góc lệch thân: {photoCurrentAngle}°).</li>
+                    <li><strong>Giả thuyết Charles Darwin:</strong> Chóp bao lá mầm là nơi tiếp nhận kích thích ánh sáng. Khi bọc mũ đen hoặc cắt ngọn, cây mất hoàn toàn khả năng uốn cong.</li>
+                    <li><strong>Vận dụng thực tiễn:</strong> Giải thích hiện tượng cây cảnh đặt bên cửa sổ mọc nghiêng ra ngoài; khuyến nghị định kỳ xoay chậu 180° sau mỗi 3-5 ngày để tán cây phát triển cân đối, thân thẳng đẹp.</li>
+                  </ul>
+                </div>
               </div>
             </div>
           )}
