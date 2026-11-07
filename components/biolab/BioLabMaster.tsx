@@ -130,6 +130,7 @@ export default function BioLabMaster() {
           {activeLab === 'phototropism' && (
             <PhototropismScene
               state={photoState}
+              onUpdateState={setPhotoState}
               onAngleUpdate={(ang) => setPhotoCurrentAngle(ang)}
               isPlaying={isPlaying}
             />
@@ -138,6 +139,7 @@ export default function BioLabMaster() {
           {activeLab === 'photosynthesis' && (
             <PhotosynthesisScene
               state={synthState}
+              onUpdateState={setSynthState}
               onUpdateBubbleRate={(bpm, vol) => {
                 setSynthState((prev) => ({
                   ...prev,
@@ -152,6 +154,7 @@ export default function BioLabMaster() {
           {activeLab === 'hydrotropism' && (
             <RootTropismScene
               state={hydroState}
+              onUpdateState={setHydroState}
               onUpdateRootAngle={(ang) => setHydroCurrentAngle(ang)}
               isPlaying={isPlaying}
             />

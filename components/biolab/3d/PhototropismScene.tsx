@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { PhototropismState } from '../types';
@@ -8,11 +8,12 @@ import { setupLabEnvironment } from './LabEnvironment';
 
 interface Props {
   state: PhototropismState;
+  onUpdateState?: (updater: (prev: PhototropismState) => PhototropismState) => void;
   onAngleUpdate?: (angle: number) => void;
   isPlaying: boolean;
 }
 
-export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: Props) {
+export default function PhototropismScene({ state, onUpdateState, onAngleUpdate, isPlaying }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -21,6 +22,10 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
 
   // Track smoothly interpolated bent angle
   const currentBentAngleRef = useRef(0);
+
+  // Direct Interactive Lamp Control Modal / Popover
+  const [isLampControlOpen, setIsLampControlOpen] = useState(false);
+  const [isHoveringLamp, setIsHoveringLamp] = useState(false);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -108,14 +113,36 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
     // Rich Loam Soil (dark textured earth recessed cleanly below the rim)
     const soilGeo = new THREE.CylinderGeometry(0.9, 0.78, 0.45, 36);
     const soilMat = new THREE.MeshStandardMaterial({
-      color: 0x221711,
-      roughness: 0.96,
+      color: 0x271c16,
+      roughness: 0.95,
       metalness: 0.02,
     });
     const soil = new THREE.Mesh(soilGeo, soilMat);
-    soil.position.y = 1.15; // Surface at y = 1.37, naturally recessed inside pot
+    soil.position.y = 1.15; // Surface at y = 1.37
     soil.receiveShadow = true;
     potGroup.add(soil);
+
+    // Organic Soil Mound around stem collar
+    const soilMoundGeo = new THREE.ConeGeometry(0.35, 0.08, 24);
+    const soilMoundMat = new THREE.MeshStandardMaterial({ color: 0x221711, roughness: 0.98 });
+    const soilMound = new THREE.Mesh(soilMoundGeo, soilMoundMat);
+    soilMound.position.y = 1.38;
+    potGroup.add(soilMound);
+
+    // Realistic scattered Perlite grains (hạt đá trân châu perlite xốp trắng giữ ẩm tự nhiên)
+    const perliteMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.8 });
+    for (let i = 0; i < 35; i++) {
+      const radius = 0.12 + Math.random() * 0.7;
+      const angle = Math.random() * Math.PI * 2;
+      const px = Math.cos(angle) * radius;
+      const pz = Math.sin(angle) * radius;
+      const pScale = 0.02 + Math.random() * 0.025;
+
+      const perlite = new THREE.Mesh(new THREE.DodecahedronGeometry(pScale, 0), perliteMat);
+      perlite.position.set(px, 1.375 + Math.random() * 0.01, pz);
+      perlite.rotation.set(Math.random(), Math.random(), Math.random());
+      potGroup.add(perlite);
+    }
 
     // Plant Stem Group
     const plantGroup = new THREE.Group();
@@ -150,9 +177,12 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
     auxinParticles.visible = false;
     plantGroup.add(auxinParticles);
 
-    // 4. Articulated Laboratory Bench Lamp (Đèn bàn thí nghiệm kim loại sang trọng)
+    // 4. Articulated Laboratory Bench Lamp (Interactive Clickable Lamp)
     const lampGroup = new THREE.Group();
     scene.add(lampGroup);
+
+    // Interactive clickable lamp elements list for raycasting
+    const lampClickables: THREE.Object3D[] = [];
 
     // Heavy Circular Steel Base
     const lampBase = new THREE.Mesh(
@@ -161,7 +191,9 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
     );
     lampBase.castShadow = true;
     lampBase.receiveShadow = true;
+    lampBase.userData = { isLamp: true };
     lampGroup.add(lampBase);
+    lampClickables.push(lampBase);
 
     // Base joint knob
     const baseJoint = new THREE.Mesh(
@@ -179,7 +211,9 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
     lowerArm.position.set(-0.25, 0.98, 0);
     lowerArm.rotation.z = Math.PI / 10;
     lowerArm.castShadow = true;
+    lowerArm.userData = { isLamp: true };
     lampGroup.add(lowerArm);
+    lampClickables.push(lowerArm);
 
     // Middle Elbow Joint
     const elbowJoint = new THREE.Mesh(
@@ -197,23 +231,27 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
     upperArm.position.set(-0.2, 2.55, 0);
     upperArm.rotation.z = -Math.PI / 8;
     upperArm.castShadow = true;
+    upperArm.userData = { isLamp: true };
     lampGroup.add(upperArm);
+    lampClickables.push(upperArm);
 
-    // Lamp Shade (Bell hood in sleek glossy turquoise / ocean blue)
-    const shadeGeo = new THREE.ConeGeometry(0.62, 0.9, 36, 1, true);
+    // Lamp Shade (Bell hood in sleek glossy ocean blue)
+    const shadeGeo = new THREE.ConeGeometry(0.64, 0.95, 36, 1, true);
     const shadeMat = new THREE.MeshStandardMaterial({
-      color: 0x0369a1,
-      metalness: 0.6,
-      roughness: 0.25,
+      color: 0x0284c7,
+      metalness: 0.7,
+      roughness: 0.2,
       side: THREE.DoubleSide,
     });
     const lampShade = new THREE.Mesh(shadeGeo, shadeMat);
     lampShade.position.set(0.1, 3.25, 0);
     lampShade.castShadow = true;
+    lampShade.userData = { isLamp: true };
     lampGroup.add(lampShade);
+    lampClickables.push(lampShade);
 
     // Inner Reflector of shade
-    const reflectorGeo = new THREE.ConeGeometry(0.6, 0.86, 36, 1, true);
+    const reflectorGeo = new THREE.ConeGeometry(0.62, 0.9, 36, 1, true);
     const reflectorMat = new THREE.MeshStandardMaterial({
       color: 0xf8fafc,
       metalness: 0.9,
@@ -233,7 +271,9 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
     });
     const bulb = new THREE.Mesh(bulbGeo, bulbMat);
     bulb.position.copy(lampShade.position);
+    bulb.userData = { isLamp: true };
     lampGroup.add(bulb);
+    lampClickables.push(bulb);
 
     // SpotLight emitting from bulb
     const spotLight = new THREE.SpotLight(0xffffff, 5, 14, Math.PI / 3.8, 0.35, 1);
@@ -257,7 +297,9 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
       depthWrite: false,
     });
     const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+    beamMesh.userData = { isLamp: true };
     lampGroup.add(beamMesh);
+    lampClickables.push(beamMesh);
 
     // 5. Scientific Protractor Arc Gauge in 3D
     const protractorGroup = new THREE.Group();
@@ -277,7 +319,7 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
     protractorGroup.add(arcLine);
     scene.add(protractorGroup);
 
-    // Rebuild Plant Stem & Leaf Geometry with realistic organic form
+    // Rebuild Plant Stem & Leaf Geometry with authentic botanical features
     function updatePlantGeometry(angleRad: number, s: PhototropismState) {
       if (stemMesh) plantGroup.remove(stemMesh);
       if (leavesMesh) plantGroup.remove(leavesMesh);
@@ -287,29 +329,83 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
       const isDecapitated = s.plantTreatment === 'decapitated';
       const actualHeight = isDecapitated ? height * 0.72 : height;
 
-      // Spline curve for stem bending
-      const tipOffsetX = Math.sin(angleRad) * (actualHeight * 0.55);
+      // Organic Spline Curve for realistic biological bending
+      const tipOffsetX = Math.sin(angleRad) * (actualHeight * 0.58);
       const tipOffsetY = Math.cos(angleRad) * actualHeight;
 
+      // Adding subtle biological inflection (natural s-shape micro-waviness)
       const p0 = new THREE.Vector3(0, 0, 0);
-      const p1 = new THREE.Vector3(0, actualHeight * 0.35, 0);
-      const p2 = new THREE.Vector3(tipOffsetX * 0.62, actualHeight * 0.7, 0);
+      const p1 = new THREE.Vector3(0, actualHeight * 0.28, 0.015);
+      const p2 = new THREE.Vector3(tipOffsetX * 0.65, actualHeight * 0.68, -0.01);
       const p3 = new THREE.Vector3(tipOffsetX, tipOffsetY, 0);
 
       const curve = new THREE.CubicBezierCurve3(p0, p1, p2, p3);
 
-      // Realistic tapered stem geometry
-      const tubeGeo = new THREE.TubeGeometry(curve, 36, 0.09, 16, false);
-      const stemColor = s.xrayMode ? 0x06b6d4 : 0x22c55e;
+      // Realistic Tapered Stem: generates tubular mesh that naturally tapers
+      // from thick base (r=0.10) to slender apical tip (r=0.055)
+      const segments = 40;
+      const radialSegments = 16;
+      const frames = curve.computeFrenetFrames(segments, false);
+      const stemVertices: number[] = [];
+      const stemIndices: number[] = [];
+      const stemNormals: number[] = [];
+      const stemUvs: number[] = [];
+
+      for (let i = 0; i <= segments; i++) {
+        const u = i / segments;
+        const pt = curve.getPointAt(u);
+        const N = frames.normals[i];
+        const B = frames.binormals[i];
+        // Botanical taper: wider hypocotyl collar at soil, slender at top
+        const radius = 0.105 - (u * 0.052);
+
+        for (let j = 0; j <= radialSegments; j++) {
+          const v = j / radialSegments;
+          const theta = v * Math.PI * 2;
+          const sinTheta = Math.sin(theta);
+          const cosTheta = Math.cos(theta);
+
+          const normal = new THREE.Vector3()
+            .copy(N).multiplyScalar(cosTheta)
+            .addScaledVector(B, sinTheta)
+            .normalize();
+
+          const vertex = new THREE.Vector3().copy(pt).addScaledVector(normal, radius);
+
+          stemVertices.push(vertex.x, vertex.y, vertex.z);
+          stemNormals.push(normal.x, normal.y, normal.z);
+          stemUvs.push(u, v);
+        }
+      }
+
+      for (let i = 0; i < segments; i++) {
+        for (let j = 0; j < radialSegments; j++) {
+          const a = i * (radialSegments + 1) + j;
+          const b = (i + 1) * (radialSegments + 1) + j;
+          const c = (i + 1) * (radialSegments + 1) + (j + 1);
+          const d = i * (radialSegments + 1) + (j + 1);
+
+          stemIndices.push(a, b, d);
+          stemIndices.push(b, c, d);
+        }
+      }
+
+      const stemGeo = new THREE.BufferGeometry();
+      stemGeo.setAttribute('position', new THREE.Float32BufferAttribute(stemVertices, 3));
+      stemGeo.setAttribute('normal', new THREE.Float32BufferAttribute(stemNormals, 3));
+      stemGeo.setAttribute('uv', new THREE.Float32BufferAttribute(stemUvs, 2));
+      stemGeo.setIndex(stemIndices);
+
+      const stemColor = s.xrayMode ? 0x06b6d4 : 0x16a34a;
       const stemMat = new THREE.MeshStandardMaterial({
         color: stemColor,
-        roughness: s.xrayMode ? 0.2 : 0.45,
+        roughness: s.xrayMode ? 0.2 : 0.38,
         metalness: 0.05,
         transparent: s.xrayMode,
         opacity: s.xrayMode ? 0.38 : 1.0,
       });
 
-      stemMesh = new THREE.Mesh(tubeGeo, stemMat);
+      stemMesh = new THREE.Mesh(stemGeo, stemMat);
       stemMesh.castShadow = true;
       stemMesh.receiveShadow = true;
       plantGroup.add(stemMesh);
@@ -320,44 +416,93 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
         leavesMesh.position.copy(p3);
         leavesMesh.rotation.z = -angleRad;
 
-        // Realistic leaf geometry (cotyledon leaves with central vein line)
-        const leafShape = new THREE.Shape();
-        leafShape.moveTo(0, 0);
-        leafShape.bezierCurveTo(0.2, 0.15, 0.4, 0.25, 0.65, 0.05);
-        leafShape.bezierCurveTo(0.4, -0.2, 0.15, -0.15, 0, 0);
+        // Realistic Cotyledon Leaf (spoon-curved thick fleshy cotyledons with distinct midrib vein)
+        const cotyledonShape = new THREE.Shape();
+        cotyledonShape.moveTo(0, 0);
+        cotyledonShape.bezierCurveTo(0.18, 0.16, 0.45, 0.32, 0.72, 0.08);
+        cotyledonShape.bezierCurveTo(0.48, -0.26, 0.16, -0.18, 0, 0);
 
-        const extrudeSettings = { depth: 0.02, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: 0.015, bevelThickness: 0.015 };
-        const leafGeo = new THREE.ExtrudeGeometry(leafShape, extrudeSettings);
+        const cotyledonExtrude = {
+          depth: 0.024,
+          bevelEnabled: true,
+          bevelSegments: 4,
+          steps: 1,
+          bevelSize: 0.02,
+          bevelThickness: 0.02,
+        };
+        const cotyledonGeo = new THREE.ExtrudeGeometry(cotyledonShape, cotyledonExtrude);
 
         const leafMat = new THREE.MeshStandardMaterial({
-          color: s.xrayMode ? 0x0891b2 : 0x16a34a,
-          roughness: 0.4,
-          metalness: 0.05,
+          color: s.xrayMode ? 0x0891b2 : 0x15803d,
+          roughness: 0.32,
+          metalness: 0.04,
           transparent: s.xrayMode,
           opacity: s.xrayMode ? 0.45 : 1.0,
         });
 
-        // Left leaf
-        const leafLeft = new THREE.Mesh(leafGeo, leafMat);
-        leafLeft.position.set(-0.02, 0, 0);
+        // Left Cotyledon with curved petiole (cuống lá mầm)
+        const petioleGeo = new THREE.CylinderGeometry(0.028, 0.038, 0.18, 12);
+        petioleGeo.rotateZ(Math.PI / 4);
+        const petioleL = new THREE.Mesh(petioleGeo, stemMat);
+        petioleL.position.set(-0.06, -0.04, 0);
+        leavesMesh.add(petioleL);
+
+        const leafLeft = new THREE.Mesh(cotyledonGeo, leafMat);
+        leafLeft.position.set(-0.08, 0.02, 0);
         leafLeft.rotation.z = Math.PI / 5;
-        leafLeft.scale.set(1.1, 1.1, 1.1);
+        leafLeft.rotation.x = 0.22; // Natural cupping droop
+        leafLeft.scale.set(1.15, 1.15, 1.15);
         leafLeft.castShadow = true;
         leavesMesh.add(leafLeft);
 
-        // Right leaf
-        const leafRight = new THREE.Mesh(leafGeo, leafMat);
-        leafRight.position.set(0.02, 0, 0);
+        // Right Cotyledon
+        const petioleR = new THREE.Mesh(petioleGeo, stemMat);
+        petioleR.position.set(0.06, -0.04, 0);
+        petioleR.rotation.z = -Math.PI / 2;
+        leavesMesh.add(petioleR);
+
+        const leafRight = new THREE.Mesh(cotyledonGeo, leafMat);
+        leafRight.position.set(0.08, 0.02, 0);
         leafRight.rotation.z = Math.PI - Math.PI / 5;
-        leafRight.rotation.x = Math.PI;
-        leafRight.scale.set(1.1, 1.1, 1.1);
+        leafRight.rotation.x = Math.PI - 0.22;
+        leafRight.scale.set(1.15, 1.15, 1.15);
         leafRight.castShadow = true;
         leavesMesh.add(leafRight);
 
-        // Terminal bud at the apex
-        const budGeo = new THREE.ConeGeometry(0.09, 0.25, 16);
-        budGeo.translate(0, 0.12, 0);
-        const budMat = new THREE.MeshStandardMaterial({ color: 0x86efac, roughness: 0.5 });
+        // Midrib Veins on both leaves (gân chính nổi rõ)
+        const veinMat = new THREE.MeshStandardMaterial({ color: 0x86efac, roughness: 0.4 });
+        const veinGeo = new THREE.CylinderGeometry(0.008, 0.016, 0.55, 8);
+        veinGeo.rotateZ(Math.PI / 2);
+
+        const veinL = new THREE.Mesh(veinGeo, veinMat);
+        veinL.position.set(0.32, 0.02, 0.028);
+        leafLeft.add(veinL);
+
+        const veinR = new THREE.Mesh(veinGeo, veinMat);
+        veinR.position.set(0.32, 0.02, 0.028);
+        leafRight.add(veinR);
+
+        // Emerging Pair of First True Leaves (Hai lá thật non mơn mởn ở đỉnh sinh trưởng)
+        const trueLeafGeo = new THREE.SphereGeometry(0.12, 12, 12);
+        trueLeafGeo.scale(1.8, 0.18, 0.7);
+        const trueLeafMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.35 });
+
+        const trueLeafL = new THREE.Mesh(trueLeafGeo, trueLeafMat);
+        trueLeafL.position.set(-0.06, 0.12, 0.04);
+        trueLeafL.rotation.y = Math.PI / 4;
+        trueLeafL.rotation.z = Math.PI / 6;
+        leavesMesh.add(trueLeafL);
+
+        const trueLeafR = new THREE.Mesh(trueLeafGeo, trueLeafMat);
+        trueLeafR.position.set(0.06, 0.12, -0.04);
+        trueLeafR.rotation.y = -Math.PI / 4;
+        trueLeafR.rotation.z = -Math.PI / 6;
+        leavesMesh.add(trueLeafR);
+
+        // Tender Terminal Bud apex
+        const budGeo = new THREE.ConeGeometry(0.045, 0.16, 12);
+        budGeo.translate(0, 0.1, 0);
+        const budMat = new THREE.MeshStandardMaterial({ color: 0xa3e635, roughness: 0.4 });
         const bud = new THREE.Mesh(budGeo, budMat);
         leavesMesh.add(bud);
 
@@ -388,11 +533,12 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
           plantGroup.add(treatmentItem);
         } else if (s.plantTreatment === 'agar_block') {
           const agarGeo = new THREE.BoxGeometry(0.24, 0.14, 0.24);
-          const agarMat = new THREE.MeshStandardMaterial({
+          const agarMat = new THREE.MeshPhysicalMaterial({
             color: 0xfef08a,
+            transmission: 0.82,
+            opacity: 0.9,
             transparent: true,
-            opacity: 0.75,
-            roughness: 0.25,
+            roughness: 0.1,
           });
           treatmentItem = new THREE.Mesh(agarGeo, agarMat);
           treatmentItem.position.copy(p3);
@@ -409,6 +555,14 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
         }
 
         plantGroup.add(leavesMesh);
+      } else {
+        // Decapitated Cut Surface: clean transverse cut showing vascular bundle
+        const cutGeo = new THREE.CircleGeometry(0.075, 16);
+        cutGeo.rotateX(-Math.PI / 2);
+        const cutMat = new THREE.MeshStandardMaterial({ color: 0x86efac, roughness: 0.6 });
+        treatmentItem = new THREE.Mesh(cutGeo, cutMat);
+        treatmentItem.position.copy(p3);
+        plantGroup.add(treatmentItem);
       }
 
       // Update Auxin particle positions along stem
@@ -437,6 +591,43 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
         auxinParticles.visible = false;
       }
     }
+
+    // Direct Interaction on Lamp via Raycaster
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    const handlePointerMove = (e: MouseEvent) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(lampClickables, true);
+      if (intersects.length > 0) {
+        renderer.domElement.style.cursor = 'pointer';
+        setIsHoveringLamp(true);
+      } else {
+        renderer.domElement.style.cursor = 'default';
+        setIsHoveringLamp(false);
+      }
+    };
+
+    const handlePointerDown = (e: MouseEvent) => {
+      // Only trigger on left-click without drag
+      if (e.button !== 0) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(lampClickables, true);
+      if (intersects.length > 0) {
+        setIsLampControlOpen((prev) => !prev);
+      }
+    };
+
+    renderer.domElement.addEventListener('mousemove', handlePointerMove);
+    renderer.domElement.addEventListener('click', handlePointerDown);
 
     // Animation Loop
     let animationFrameId: number;
@@ -533,6 +724,8 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      renderer.domElement.removeEventListener('mousemove', handlePointerMove);
+      renderer.domElement.removeEventListener('click', handlePointerDown);
       cancelAnimationFrame(animationFrameId);
       controls.dispose();
       renderer.dispose();
@@ -557,8 +750,154 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
         </div>
       </div>
 
+      {/* Interactive Lamp Click Button / Indicator */}
+      <button
+        onClick={() => setIsLampControlOpen((prev) => !prev)}
+        className={`absolute top-4 right-4 z-20 flex items-center gap-2 px-3.5 py-2 rounded-2xl font-bold text-xs shadow-lg backdrop-blur-md transition-all cursor-pointer ${
+          isLampControlOpen
+            ? 'bg-amber-500 text-white ring-4 ring-amber-500/20'
+            : isHoveringLamp
+            ? 'bg-amber-100 text-amber-900 border-2 border-amber-400 scale-105'
+            : 'bg-white/95 text-slate-800 border border-slate-200 hover:bg-amber-50 hover:text-amber-800'
+        }`}
+      >
+        <span className="text-base animate-pulse">💡</span>
+        <span>{isLampControlOpen ? 'Đang chỉnh Đèn' : 'Thao tác trên Đèn'}</span>
+      </button>
+
+      {/* DIRECT LAMP INTERACTIVE CONTROL POPUP OVERLAY */}
+      {isLampControlOpen && onUpdateState && (
+        <div className="absolute top-16 right-4 z-30 w-80 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-3xl p-4 shadow-2xl text-slate-800 space-y-3.5 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-sm font-bold">
+                💡
+              </span>
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 leading-tight">Điều Khiển Trực Tiếp Đèn</h4>
+                <p className="text-[10px] text-slate-500">Chỉnh thông số nguồn sáng thời gian thực</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsLampControlOpen(false)}
+              className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center text-xs transition cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* 1. Light Intensity Slider (Độ sáng) */}
+          <div className="space-y-1.5 bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-bold text-slate-700">Độ sáng đèn (Cường độ)</span>
+              <span className="font-mono text-sky-700 font-extrabold bg-sky-50 px-2 py-0.5 rounded border border-sky-200 text-xs">
+                {state.lightIntensity}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min="10"
+              max="100"
+              step="5"
+              value={state.lightIntensity}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                onUpdateState((prev) => ({ ...prev, lightIntensity: val }));
+              }}
+              className="w-full accent-sky-600 cursor-pointer h-2 bg-slate-200 rounded-lg"
+            />
+            <div className="flex justify-between gap-1 pt-1">
+              {[25, 50, 75, 100].map((preset) => (
+                <button
+                  key={preset}
+                  onClick={() => onUpdateState((prev) => ({ ...prev, lightIntensity: preset }))}
+                  className={`flex-1 py-1 text-[10px] font-bold rounded-lg border transition cursor-pointer ${
+                    state.lightIntensity === preset
+                      ? 'bg-sky-500 text-white border-sky-600 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {preset}%
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 2. Light Angle Slider (Góc xoay đèn) */}
+          <div className="space-y-1.5 bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-bold text-slate-700">Góc xoay nguồn sáng</span>
+              <span className="font-mono text-amber-700 font-extrabold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-xs">
+                {state.lightAngle}°
+              </span>
+            </div>
+            <input
+              type="range"
+              min="-60"
+              max="60"
+              step="5"
+              value={state.lightAngle}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                onUpdateState((prev) => ({ ...prev, lightAngle: val }));
+              }}
+              className="w-full accent-amber-600 cursor-pointer h-2 bg-slate-200 rounded-lg"
+            />
+            <div className="flex justify-between gap-1 pt-1">
+              {[
+                { label: 'Trái (-45°)', val: -45 },
+                { label: 'Đỉnh (0°)', val: 0 },
+                { label: 'Phải (+45°)', val: 45 },
+              ].map((btn) => (
+                <button
+                  key={btn.val}
+                  onClick={() => onUpdateState((prev) => ({ ...prev, lightAngle: btn.val }))}
+                  className={`flex-1 py-1 text-[10px] font-bold rounded-lg border transition cursor-pointer ${
+                    state.lightAngle === btn.val
+                      ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 3. Spectrum Color Switcher */}
+          <div className="space-y-1.5 bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+            <label className="text-xs font-bold text-slate-700">Màu đèn quang phổ</label>
+            <div className="grid grid-cols-4 gap-1.5">
+              {[
+                { id: 'white', label: 'Trắng', activeClass: 'bg-white text-slate-900 border-slate-400 font-bold shadow-xs' },
+                { id: 'blue', label: 'Xanh lam', activeClass: 'bg-sky-100 text-sky-800 border-sky-400 font-bold shadow-xs' },
+                { id: 'red', label: 'Đỏ', activeClass: 'bg-rose-100 text-rose-800 border-rose-400 font-bold shadow-xs' },
+                { id: 'off', label: 'Tắt đèn', activeClass: 'bg-slate-200 text-slate-700 border-slate-400 font-bold shadow-xs' },
+              ].map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() =>
+                    onUpdateState((prev) => ({
+                      ...prev,
+                      lightColor: c.id as PhototropismState['lightColor'],
+                    }))
+                  }
+                  className={`py-1 px-1 rounded-lg text-[11px] border transition cursor-pointer ${
+                    state.lightColor === c.id
+                      ? `${c.activeClass} ring-2 ring-emerald-500/30`
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {state.xrayMode && (
-        <div className="absolute top-4 right-4 bg-amber-50/95 border border-amber-300 backdrop-blur-md px-3.5 py-2.5 rounded-2xl text-xs text-amber-900 shadow-lg max-w-[270px]">
+        <div className="absolute top-16 left-4 bg-amber-50/95 border border-amber-300 backdrop-blur-md px-3.5 py-2.5 rounded-2xl text-xs text-amber-900 shadow-lg max-w-[270px]">
           <div className="font-bold flex items-center gap-1.5 mb-1 text-amber-700">
             <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
             Chế độ X-Ray: Phân bố Auxin
@@ -570,8 +909,10 @@ export default function PhototropismScene({ state, onAngleUpdate, isPlaying }: P
       )}
 
       {/* Bottom Hint */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/80 backdrop-blur-sm px-4 py-1.5 rounded-full border border-slate-300 text-[11px] text-slate-600 pointer-events-none shadow-sm">
-        🖱️ Giữ chuột trái để xoay 360° • Lăn chuột để phóng to/thu nhỏ
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/85 backdrop-blur-sm px-4 py-1.5 rounded-full border border-slate-300 text-[11px] text-slate-600 pointer-events-none shadow-sm flex items-center gap-2">
+        <span>💡 <strong>Mẹo:</strong> Nhấp trực tiếp vào bóng đèn để mở thanh trượt tăng/giảm độ sáng</span>
+        <span>•</span>
+        <span>🖱️ Giữ chuột trái để xoay 360°</span>
       </div>
     </div>
   );
