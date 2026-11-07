@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { PhotosynthesisState } from '../types';
+import { setupLabEnvironment } from './LabEnvironment';
 
 interface Props {
   state: PhotosynthesisState;
@@ -24,18 +25,15 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
 
   const [cameraView, setCameraView] = useState<'overview' | 'closeup'>('overview');
 
-  // Camera switch animation
   const switchCameraView = (view: 'overview' | 'closeup') => {
     setCameraView(view);
     if (!controlsRef.current || !cameraRef.current) return;
     if (view === 'closeup') {
-      // Zoom right into the test tube bubble stream
       cameraRef.current.position.set(0, 2.5, 4.0);
       controlsRef.current.target.set(0, 2.2, 0);
     } else {
-      // Overview
-      cameraRef.current.position.set(0, 4.2, 8.5);
-      controlsRef.current.target.set(0, 2.0, 0);
+      cameraRef.current.position.set(0, 3.8, 8.2);
+      controlsRef.current.target.set(0, 1.8, 0);
     }
     controlsRef.current.update();
   };
@@ -46,8 +44,6 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
 
     // 1. Scene, Camera, Renderer
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x070b14);
-    scene.fog = new THREE.FogExp2(0x070b14, 0.025);
 
     const camera = new THREE.PerspectiveCamera(
       45,
@@ -55,122 +51,164 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
       0.1,
       100
     );
-    camera.position.set(0, 4.2, 8.5);
+    camera.position.set(0, 3.8, 8.2);
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+    renderer.toneMappingExposure = 1.15;
     container.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.maxPolarAngle = Math.PI / 2 + 0.05;
+    controls.maxPolarAngle = Math.PI / 2 + 0.02;
     controls.minDistance = 2.0;
-    controls.maxDistance = 18;
-    controls.target.set(0, 2.0, 0);
+    controls.maxDistance = 16;
+    controls.target.set(0, 1.8, 0);
     controlsRef.current = controls;
 
-    // 2. Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
+    // 2. Setup Realistic Bright Laboratory Environment
+    setupLabEnvironment(scene);
 
-    const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.7);
-    fillLight.position.set(-5, 8, 4);
-    scene.add(fillLight);
+    // 3. Lab Retort Stand (Giá đỡ sắt thí nghiệm giữ ống nghiệm và phễu)
+    const standGroup = new THREE.Group();
+    standGroup.position.set(1.5, 0, 0);
+    scene.add(standGroup);
 
-    // Tube Backlight for maximum bubble clarity
-    const tubeGlowLight = new THREE.PointLight(0x38bdf8, 1.2, 5);
-    tubeGlowLight.position.set(0, 2.2, -0.6);
-    scene.add(tubeGlowLight);
+    // Heavy Cast Iron Base
+    const standBase = new THREE.Mesh(
+      new THREE.BoxGeometry(1.4, 0.1, 0.9),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.85, roughness: 0.35 })
+    );
+    standBase.position.y = 0.05;
+    standBase.castShadow = true;
+    standBase.receiveShadow = true;
+    standGroup.add(standBase);
 
-    // 3. Lab Table
-    const tableGeo = new THREE.CylinderGeometry(5.5, 5.8, 0.4, 48);
-    const tableMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3, metalness: 0.6 });
-    const table = new THREE.Mesh(tableGeo, tableMat);
-    table.position.y = -0.2;
-    table.receiveShadow = true;
-    scene.add(table);
+    // Steel Vertical Rod
+    const standRod = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.04, 3.8, 16),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.95, roughness: 0.15 })
+    );
+    standRod.position.set(-0.45, 1.95, 0);
+    standRod.castShadow = true;
+    standGroup.add(standRod);
 
-    const grid = new THREE.GridHelper(9, 18, 0x06b6d4, 0x1e293b);
-    grid.position.y = 0.01;
-    scene.add(grid);
+    // Boss Head & Clamp Arm holding the test tube
+    const bossHead = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.18, 0.18),
+      new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.8, roughness: 0.3 })
+    );
+    bossHead.position.set(-0.45, 2.7, 0);
+    standGroup.add(bossHead);
 
-    // Ruler on Table (Distance cm)
-    const rulerGeo = new THREE.BoxGeometry(4.8, 0.02, 0.35);
-    const rulerMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4 });
-    const ruler = new THREE.Mesh(rulerGeo, rulerMat);
-    ruler.position.set(-2.0, 0.02, 1.2);
-    scene.add(ruler);
+    const clampArm = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.025, 0.025, 1.1, 12),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.2 })
+    );
+    clampArm.rotation.z = Math.PI / 2;
+    clampArm.position.set(-1.0, 2.7, 0);
+    standGroup.add(clampArm);
 
-    // 4. Glass Aquarium Tank
+    // Ring clamp around the test tube
+    const clampRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.28, 0.03, 12, 24),
+      new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.7, roughness: 0.3 })
+    );
+    clampRing.rotation.x = Math.PI / 2;
+    clampRing.position.set(-1.5, 2.7, 0);
+    standGroup.add(clampRing);
+
+    // 4. Glass Aquarium Tank (Bể kính nuôi rong)
     const tankGroup = new THREE.Group();
     scene.add(tankGroup);
 
-    // Glass walls
-    const tankGeo = new THREE.BoxGeometry(2.8, 3.2, 1.8);
+    // High quality borosilicate glass material
     const glassMat = new THREE.MeshPhysicalMaterial({
-      color: 0xe0f2fe,
-      transmission: 0.94,
-      opacity: 1,
+      color: 0xffffff,
+      transmission: 0.95,
+      opacity: 0.9,
       transparent: true,
-      roughness: 0.04,
-      ior: 1.45,
-      thickness: 0.15,
+      roughness: 0.03,
+      ior: 1.5,
+      thickness: 0.12,
       depthWrite: false,
     });
+
+    const tankGeo = new THREE.BoxGeometry(2.8, 3.2, 1.9);
     const tank = new THREE.Mesh(tankGeo, glassMat);
     tank.position.y = 1.6;
+    tank.castShadow = true;
     tankGroup.add(tank);
 
-    // Water volume inside tank
-    const waterGeo = new THREE.BoxGeometry(2.7, 2.8, 1.7);
+    // Tank Frame Edges (Sleek black silicone border)
+    const tankEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(tankGeo),
+      new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 2 })
+    );
+    tankEdges.position.copy(tank.position);
+    tankGroup.add(tankEdges);
+
+    // Clear Water Volume inside tank
+    const waterGeo = new THREE.BoxGeometry(2.74, 2.85, 1.84);
     const waterMat = new THREE.MeshPhysicalMaterial({
-      color: 0x0284c7,
+      color: 0x38bdf8,
       transmission: 0.88,
-      opacity: 0.75,
+      opacity: 0.7,
       transparent: true,
       roughness: 0.02,
       ior: 1.33,
       depthWrite: false,
     });
     const water = new THREE.Mesh(waterGeo, waterMat);
-    water.position.y = 1.45;
+    water.position.y = 1.48;
     tankGroup.add(water);
 
     // 5. Funnel and Inverted Test Tube
     const funnelGroup = new THREE.Group();
-    funnelGroup.position.set(0, 0.8, 0);
+    funnelGroup.position.set(0, 0.85, 0);
 
-    // Funnel cone
-    const funnelGeo = new THREE.ConeGeometry(0.85, 0.9, 32, 1, true);
+    // Inverted Funnel Cone
+    const funnelGeo = new THREE.ConeGeometry(0.88, 0.95, 36, 1, true);
     funnelGeo.rotateX(Math.PI);
     const funnel = new THREE.Mesh(funnelGeo, glassMat);
-    funnel.position.y = 0.45;
+    funnel.position.y = 0.48;
     funnelGroup.add(funnel);
 
     // Funnel Stem
-    const stemGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.8, 16, 1, true);
+    const stemGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.85, 24, 1, true);
     const funnelStem = new THREE.Mesh(stemGeo, glassMat);
-    funnelStem.position.y = 1.2;
+    funnelStem.position.y = 1.25;
     funnelGroup.add(funnelStem);
 
-    // Inverted Test Tube
-    const testTubeGeo = new THREE.CylinderGeometry(0.24, 0.24, 1.7, 24, 1, false);
+    // Inverted Graduated Test Tube (Ống nghiệm có chia vạch thể tích ml)
+    const testTubeGeo = new THREE.CylinderGeometry(0.24, 0.24, 1.7, 32, 1, false);
     const testTube = new THREE.Mesh(testTubeGeo, glassMat);
     testTube.position.y = 2.05;
     funnelGroup.add(testTube);
 
+    // Test Tube Volume Marks (ml graduations)
+    const markMat = new THREE.LineBasicMaterial({ color: 0x0284c7, transparent: true, opacity: 0.7 });
+    for (let my = 1.4; my <= 2.7; my += 0.25) {
+      const markGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-0.24, my, 0),
+        new THREE.Vector3(-0.16, my, 0),
+      ]);
+      const mark = new THREE.Line(markGeo, markMat);
+      funnelGroup.add(mark);
+    }
+
     // Gas pocket at top of inverted tube (Oxygen gas pocket)
     const gasPocketGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.6, 24);
     const gasPocketMat = new THREE.MeshStandardMaterial({
-      color: 0xf0fdf4,
+      color: 0xffffff,
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.25,
       roughness: 0.1,
     });
     const gasPocket = new THREE.Mesh(gasPocketGeo, gasPocketMat);
@@ -180,59 +218,64 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
 
     tankGroup.add(funnelGroup);
 
-    // 6. Elodea Water Plant Sprig (Rong đuôi chó)
+    // 6. Elodea Water Plant Sprig (Rong đuôi chó xanh mướt nhiều tầng lá)
     const plantGroup = new THREE.Group();
     plantGroup.position.set(0, 0.15, 0);
 
-    // Main stalk
     const stalkCurve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(0, 0.1, 0),
-      new THREE.Vector3(0.08, 0.35, 0.04),
+      new THREE.Vector3(0.07, 0.35, 0.04),
       new THREE.Vector3(-0.05, 0.65, -0.03),
       new THREE.Vector3(0, 0.95, 0), // Cut tip right under the funnel stem!
     ]);
-    const stalkGeo = new THREE.TubeGeometry(stalkCurve, 20, 0.045, 8, false);
-    const stalkMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.6 });
+    const stalkGeo = new THREE.TubeGeometry(stalkCurve, 24, 0.045, 10, false);
+    const stalkMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.5 });
     const stalk = new THREE.Mesh(stalkGeo, stalkMat);
     plantGroup.add(stalk);
 
-    // Plant cut tip highlight (where O2 bubbles originate)
-    const cutTipGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.02, 12);
-    const cutTipMat = new THREE.MeshStandardMaterial({ color: 0x86efac, emissive: 0x22c55e, emissiveIntensity: 0.6 });
+    // Distinct cut stem tip with light green cell edge (Bubble generation port)
+    const cutTipGeo = new THREE.CylinderGeometry(0.055, 0.055, 0.025, 16);
+    const cutTipMat = new THREE.MeshStandardMaterial({
+      color: 0x86efac,
+      emissive: 0x22c55e,
+      emissiveIntensity: 0.7,
+      roughness: 0.3,
+    });
     const cutTip = new THREE.Mesh(cutTipGeo, cutTipMat);
     cutTip.position.set(0, 0.95, 0);
     plantGroup.add(cutTip);
 
-    // Whorls of leaves along stalk
-    const leafGeo = new THREE.ConeGeometry(0.065, 0.38, 8);
+    // Detailed whorls of lanceolate leaves
+    const leafGeo = new THREE.ConeGeometry(0.065, 0.42, 8);
     leafGeo.rotateX(Math.PI / 2);
-    const leafMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.45 });
+    const leafMat = new THREE.MeshStandardMaterial({
+      color: 0x16a34a,
+      roughness: 0.4,
+      metalness: 0.05,
+    });
 
-    for (let h = 0.22; h <= 0.88; h += 0.11) {
+    for (let h = 0.22; h <= 0.88; h += 0.1) {
       const pt = stalkCurve.getPoint(h);
       for (let r = 0; r < 4; r++) {
         const leaf = new THREE.Mesh(leafGeo, leafMat);
         leaf.position.copy(pt);
         leaf.rotation.y = (r * Math.PI) / 2 + h * 3;
-        leaf.rotation.z = 0.4;
+        leaf.rotation.z = 0.45;
         plantGroup.add(leaf);
       }
     }
     funnelGroup.add(plantGroup);
 
-    // 7. SUPER-VISIBLE BUBBLE SYSTEM
-    // Bubbles must be clearly visible, glistening, large enough to clearly observe, and continuously rising!
+    // 7. Glistening Oxygen Bubbles (Super-visible & crystal clear)
     const maxBubbles = 90;
     const bubblesGroup = new THREE.Group();
-    bubblesGroup.renderOrder = 20; // Ensure rendered on top of transparent glass
+    bubblesGroup.renderOrder = 20;
     scene.add(bubblesGroup);
 
-    // Shared sphere geometry with crisp high-res subdivisions
-    const bubbleGeoLarge = new THREE.SphereGeometry(0.09, 16, 16);
-    const bubbleGeoMed = new THREE.SphereGeometry(0.065, 14, 14);
-    const bubbleGeoSmall = new THREE.SphereGeometry(0.045, 12, 12);
+    const bubbleGeoLarge = new THREE.SphereGeometry(0.095, 16, 16);
+    const bubbleGeoMed = new THREE.SphereGeometry(0.07, 14, 14);
+    const bubbleGeoSmall = new THREE.SphereGeometry(0.048, 12, 12);
 
-    // Bright iridescent cyan-white material with emissive glow
     const bubbleMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       emissive: 0x38bdf8,
@@ -244,7 +287,6 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
       depthWrite: false,
     });
 
-    // Inner highlight ring/sphere for realistic bubble look
     const bubbles: Array<{
       mesh: THREE.Mesh;
       active: boolean;
@@ -252,7 +294,6 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
       baseX: number;
       baseZ: number;
       offset: number;
-      sizeFactor: number;
     }> = [];
 
     for (let i = 0; i < maxBubbles; i++) {
@@ -265,65 +306,107 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
         mesh: bMesh,
         active: false,
         speed: 0.85 + Math.random() * 0.45,
-        baseX: (Math.random() - 0.5) * 0.05,
-        baseZ: (Math.random() - 0.5) * 0.05,
+        baseX: (Math.random() - 0.5) * 0.04,
+        baseZ: (Math.random() - 0.5) * 0.04,
         offset: Math.random() * Math.PI * 2,
-        sizeFactor: 0.8 + Math.random() * 0.4,
       });
     }
 
-    // 8. Moveable Bench Lamp with Filter
+    // 8. Calibrated Optical Bench Rail (Thước quang học kim loại chia vạch cm)
+    const railGroup = new THREE.Group();
+    railGroup.position.set(-3.2, 0.02, 0);
+    scene.add(railGroup);
+
+    // Aluminum Rail Track
+    const railGeo = new THREE.BoxGeometry(3.6, 0.06, 0.45);
+    const railMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.85, roughness: 0.3 });
+    const rail = new THREE.Mesh(railGeo, railMat);
+    rail.position.set(0, 0.03, 0);
+    rail.receiveShadow = true;
+    railGroup.add(rail);
+
+    // Rail Graduation Ticks (10cm to 100cm marks)
+    const tickMat = new THREE.LineBasicMaterial({ color: 0xffffff });
+    for (let rx = -1.6; rx <= 1.6; rx += 0.35) {
+      const tickGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(rx, 0.065, -0.18),
+        new THREE.Vector3(rx, 0.065, 0.18),
+      ]);
+      const tick = new THREE.Line(tickGeo, tickMat);
+      railGroup.add(tick);
+    }
+
+    // 9. Moveable Bench Lamp with Optical Filter
     const lampRig = new THREE.Group();
     scene.add(lampRig);
 
-    const lampShade = new THREE.Mesh(
-      new THREE.ConeGeometry(0.5, 0.8, 32, 1, true),
-      new THREE.MeshStandardMaterial({ color: 0x0f766e, metalness: 0.7, roughness: 0.3 })
+    // Carriage base sliding on the rail
+    const carriage = new THREE.Mesh(
+      new THREE.BoxGeometry(0.75, 0.1, 0.55),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.3 })
     );
+    carriage.position.y = 0.08;
+    carriage.castShadow = true;
+    lampRig.add(carriage);
+
+    // Lamp Stand Post
+    const lampPost = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.04, 1.7, 16),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.2 })
+    );
+    lampPost.position.set(0, 0.95, 0);
+    lampPost.castShadow = true;
+    lampRig.add(lampPost);
+
+    // Lamp Shade
+    const lampShade = new THREE.Mesh(
+      new THREE.ConeGeometry(0.5, 0.8, 36, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.6, roughness: 0.25 })
+    );
+    lampShade.position.set(0, 1.8, 0);
     lampShade.rotation.z = -Math.PI / 2;
+    lampShade.castShadow = true;
     lampRig.add(lampShade);
 
     const bulb = new THREE.Mesh(
-      new THREE.SphereGeometry(0.18, 16, 16),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2 })
+      new THREE.SphereGeometry(0.18, 20, 20),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2.2 })
     );
-    bulb.position.x = 0.15;
+    bulb.position.set(0.18, 1.8, 0);
     lampRig.add(bulb);
 
-    const spotLight = new THREE.SpotLight(0xffffff, 5, 12, Math.PI / 4, 0.2, 1);
-    spotLight.position.set(0, 0, 0);
-    spotLight.target.position.set(2, 0, 0);
+    const spotLight = new THREE.SpotLight(0xffffff, 6, 14, Math.PI / 3.8, 0.25, 1);
+    spotLight.position.set(0, 1.8, 0);
+    spotLight.target.position.set(2, 1.8, 0);
     lampRig.add(spotLight);
     lampRig.add(spotLight.target);
 
-    // Colored Optical Filter Glass
+    // Optical Colored Filter Glass Plate
     const filterGeo = new THREE.BoxGeometry(0.04, 1.4, 1.4);
     const filterMat = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
-      transmission: 0.8,
+      transmission: 0.85,
       transparent: true,
-      opacity: 0.7,
-      roughness: 0.1,
+      opacity: 0.75,
+      roughness: 0.05,
     });
     const filterMesh = new THREE.Mesh(filterGeo, filterMat);
-    filterMesh.position.set(0.65, 0, 0);
+    filterMesh.position.set(0.68, 1.8, 0);
     lampRig.add(filterMesh);
 
-    // 9. Glowing Splint & Flame
+    // 10. Glowing Splint & Flame
     const splintGroup = new THREE.Group();
     splintGroup.position.set(0, 3.8, 0);
     splintGroup.visible = false;
     scene.add(splintGroup);
 
-    // Wood stick
     const stick = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.02, 0.02, 1.2, 12),
-      new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.8 })
+      new THREE.CylinderGeometry(0.022, 0.022, 1.25, 12),
+      new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.8 })
     );
-    stick.position.y = 0.6;
+    stick.position.y = 0.62;
     splintGroup.add(stick);
 
-    // Glowing Ember tip
     const emberGeo = new THREE.SphereGeometry(0.045, 12, 12);
     const emberMat = new THREE.MeshStandardMaterial({
       color: 0xef4444,
@@ -334,7 +417,6 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
     ember.position.y = 0;
     splintGroup.add(ember);
 
-    // Bursting flame mesh
     const flameGeo = new THREE.ConeGeometry(0.14, 0.5, 16);
     flameGeo.translate(0, 0.25, 0);
     const flameMat = new THREE.MeshStandardMaterial({
@@ -352,7 +434,7 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
     flameLight.position.y = 0.25;
     splintGroup.add(flameLight);
 
-    // Animation & Biological Calculation Loop
+    // Animation & Calculation Loop
     let animationFrameId: number;
     let clock = new THREE.Clock();
     let spawnCounter = 0;
@@ -364,16 +446,13 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
       const s = stateRef.current;
       const playing = isPlayingRef.current;
 
-      // Biological formula:
-      // Rate = LightFactor * CO2Factor * TempFactor * FilterFactor
+      // Biological formula: Rate = LightFactor * CO2Factor * TempFactor * FilterFactor
       const distMeters = Math.max(s.lampDistance, 10) / 100;
       const lightIntensity = (s.lampPower / (distMeters * distMeters * 80)) * 0.75;
       const lightFactor = Math.min(lightIntensity, 1.85);
 
-      // CO2 Factor (NaHCO3): 0% -> 0 rate; optimal around 2-3%
       const co2Factor = (s.co2Concentration * 1.5) / (0.8 + s.co2Concentration);
 
-      // Temperature Factor (Bell curve around 28C, drops sharply >45C)
       let tempFactor = 0;
       if (s.waterTemperature >= 5 && s.waterTemperature <= 50) {
         if (s.waterTemperature < 30) {
@@ -383,7 +462,6 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
         }
       }
 
-      // Filter Factor
       let filterFactor = 1.0;
       let filterColorHex = 0xffffff;
       if (s.colorFilter === 'blue') {
@@ -393,17 +471,16 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
         filterFactor = 0.88;
         filterColorHex = 0xef4444;
       } else if (s.colorFilter === 'green') {
-        filterFactor = 0.12; // Chlorophyll reflects green light!
+        filterFactor = 0.12;
         filterColorHex = 0x22c55e;
       }
 
-      // Final rate in Bubbles Per Minute (0 to 90 bpm)
       const rawBPM = 52 * lightFactor * co2Factor * tempFactor * filterFactor;
       const bubblesPerMinute = Math.round(rawBPM * 10) / 10;
 
       // Update lamp position on rail
       const lampX = -1.6 - (s.lampDistance / 100) * 3.0;
-      lampRig.position.set(lampX, 1.8, 0);
+      lampRig.position.set(lampX, 0, 0);
 
       // Filter color
       (filterMesh.material as THREE.MeshPhysicalMaterial).color.setHex(filterColorHex);
@@ -417,18 +494,12 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
         collectedVolRef.current = Math.min(100, collectedVolRef.current + fillRate);
       }
 
-      // Scale gas pocket mesh inside test tube
-      // World space test tube is at y = 0.8 + 2.05 = 2.85; top of tube is ~3.65
       const volScale = Math.max(0.05, (collectedVolRef.current / 100) * 1.6);
       gasPocket.scale.set(1, volScale, 1);
       gasPocket.position.y = 2.75 - volScale * 0.3;
 
-      // 🫧 EMIT RISING O2 BUBBLES
-      // Cut stem tip in world coordinates is at (0, 1.75, 0).
-      // Funnel neck is from y = 1.8 to 2.2.
-      // Inverted test tube is from y = 2.2 to 3.5.
+      // Emit bubbles
       if (playing && bubblesPerMinute > 0.5) {
-        // Frequency of bubble emission based on rate
         const spawnInterval = Math.max(0.04, 1.0 / ((bubblesPerMinute / 60) * s.timeMultiplier));
         spawnCounter += delta;
 
@@ -438,33 +509,27 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
           if (inactive) {
             inactive.active = true;
             inactive.mesh.visible = true;
-            // Spawn right at the cut stem tip (world coordinates: y = 1.75)
-            inactive.mesh.position.set(inactive.baseX, 1.75, inactive.baseZ);
+            inactive.mesh.position.set(inactive.baseX, 1.8, inactive.baseZ);
           }
         }
       }
 
-      // Animate bubbles rising through the funnel neck into the test tube
       const time = clock.getElapsedTime();
-      const gasTopLimit = 3.55 - (volScale * 0.28); // Level where gas accumulates
+      const gasTopLimit = 3.55 - (volScale * 0.28);
 
       for (const b of bubbles) {
         if (!b.active) continue;
-        // Float upwards
         b.mesh.position.y += b.speed * delta * (playing ? s.timeMultiplier : 0.2);
-
-        // Realistic horizontal wobble
         b.mesh.position.x = b.baseX + Math.sin(time * 8 + b.offset) * 0.025;
         b.mesh.position.z = b.baseZ + Math.cos(time * 8 + b.offset) * 0.025;
 
-        // When bubble reaches the gas chamber boundary at top of tube -> pops into gas
         if (b.mesh.position.y >= gasTopLimit) {
           b.active = false;
           b.mesh.visible = false;
         }
       }
 
-      // Glowing splint animation
+      // Glowing splint
       if (s.glowingSplintActive) {
         splintGroup.visible = true;
         splintGroup.position.y = THREE.MathUtils.lerp(splintGroup.position.y, 3.1, delta * 3.5);
@@ -488,7 +553,6 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
         flameLight.intensity = 0;
       }
 
-      // Callback
       if (onUpdateBubbleRate) {
         onUpdateBubbleRate(bubblesPerMinute, Math.round(collectedVolRef.current * 10) / 10);
       }
@@ -519,17 +583,17 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
   }, []);
 
   return (
-    <div className="relative w-full h-full min-h-[480px] rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-2xl">
+    <div className="relative w-full h-full min-h-[480px] rounded-2xl overflow-hidden bg-slate-100 border border-slate-300 shadow-xl">
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
       {/* Floating 3D HUD Badges */}
       <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
-        <div className="flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-cyan-400 shadow-lg">
-          <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
-          Thí nghiệm Quang hợp ở Rong đuôi chó (Elodea)
+        <div className="flex items-center gap-2 bg-white/90 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-cyan-700 shadow-sm">
+          <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse" />
+          Phòng Thí Nghiệm Sinh Học • Mô Hình Quang Hợp
         </div>
-        <div className="bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800 text-[11px] text-slate-300">
-          Đèn: <strong className="text-amber-400">{state.lampDistance} cm</strong> | $CO_2$: <strong className="text-emerald-400">{state.co2Concentration}%</strong> | Nước: <strong className="text-cyan-400">{state.waterTemperature}°C</strong>
+        <div className="bg-white/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 text-[11px] text-slate-700 shadow-sm">
+          Đèn: <strong className="text-amber-600">{state.lampDistance} cm</strong> | $CO_2$: <strong className="text-emerald-600">{state.co2Concentration}%</strong> | Nước: <strong className="text-cyan-600">{state.waterTemperature}°C</strong>
         </div>
       </div>
 
@@ -537,20 +601,20 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
       <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
         <button
           onClick={() => switchCameraView('overview')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-semibold backdrop-blur-md border transition cursor-pointer flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold backdrop-blur-md border transition cursor-pointer flex items-center gap-1.5 shadow-sm ${
             cameraView === 'overview'
-              ? 'bg-cyan-500/25 border-cyan-400 text-cyan-300 shadow-lg'
-              : 'bg-slate-900/80 border-slate-700 text-slate-400 hover:text-white'
+              ? 'bg-cyan-50 border-cyan-400 text-cyan-700 ring-2 ring-cyan-500/20'
+              : 'bg-white/90 border-slate-200 text-slate-600 hover:text-slate-900'
           }`}
         >
           <span>🔭</span> Toàn cảnh
         </button>
         <button
           onClick={() => switchCameraView('closeup')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-semibold backdrop-blur-md border transition cursor-pointer flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold backdrop-blur-md border transition cursor-pointer flex items-center gap-1.5 shadow-sm ${
             cameraView === 'closeup'
-              ? 'bg-cyan-500/25 border-cyan-400 text-cyan-300 shadow-lg ring-2 ring-cyan-500/40'
-              : 'bg-slate-900/80 border-slate-700 text-slate-400 hover:text-white'
+              ? 'bg-cyan-50 border-cyan-400 text-cyan-700 ring-2 ring-cyan-500/20'
+              : 'bg-white/90 border-slate-200 text-slate-600 hover:text-slate-900'
           }`}
         >
           <span>🔍</span> Cận cảnh bọt khí
@@ -558,54 +622,54 @@ export default function PhotosynthesisScene({ state, onUpdateBubbleRate, isPlayi
       </div>
 
       {/* Prominent Live Bubble Stream Indicator */}
-      <div className="absolute bottom-16 left-4 bg-slate-900/95 border border-cyan-500/50 backdrop-blur-md px-4 py-3 rounded-2xl text-xs text-slate-200 shadow-2xl flex items-center gap-3 max-w-[280px]">
-        <div className="relative w-10 h-10 rounded-xl bg-cyan-950 flex items-center justify-center border border-cyan-500/40 text-cyan-300">
+      <div className="absolute bottom-16 left-4 bg-white/95 border border-cyan-300 backdrop-blur-md px-4 py-3 rounded-2xl text-xs text-slate-800 shadow-lg flex items-center gap-3 max-w-[280px]">
+        <div className="relative w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center border border-cyan-300 text-cyan-600">
           <span className="text-xl animate-bounce">🫧</span>
           {state.bubblesPerMinute > 0 && (
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full animate-ping" />
           )}
         </div>
         <div>
-          <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+          <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
             Dòng bọt khí $O_2$ thoát ra
           </div>
-          <div className="text-xl font-black text-cyan-300 flex items-baseline gap-1">
+          <div className="text-xl font-black text-cyan-600 flex items-baseline gap-1">
             {state.bubblesPerMinute}
-            <span className="text-xs font-normal text-slate-400">bọt/phút</span>
+            <span className="text-xs font-normal text-slate-500">bọt/phút</span>
           </div>
-          <div className="text-[10px] text-emerald-400 font-medium">
+          <div className="text-[10px] text-emerald-600 font-medium">
             {state.bubblesPerMinute > 30 ? 'Quang hợp rất mạnh' : state.bubblesPerMinute > 10 ? 'Quang hợp ổn định' : 'Quang hợp yếu/ngừng'}
           </div>
         </div>
       </div>
 
       {/* Oxygen Gas Tank Tube fill meter */}
-      <div className="absolute bottom-4 right-4 bg-slate-900/90 border border-slate-800 backdrop-blur-md px-3.5 py-2 rounded-xl text-xs flex items-center gap-3">
-        <div className="w-2.5 h-10 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700 flex flex-col justify-end">
+      <div className="absolute bottom-4 right-4 bg-white/90 border border-slate-200 backdrop-blur-md px-3.5 py-2 rounded-xl text-xs flex items-center gap-3 shadow-sm">
+        <div className="w-2.5 h-10 bg-slate-200 rounded-full overflow-hidden p-0.5 border border-slate-300 flex flex-col justify-end">
           <div
-            className="w-full bg-gradient-to-t from-cyan-500 to-emerald-300 rounded-full transition-all duration-300"
+            className="w-full bg-gradient-to-t from-cyan-500 to-emerald-400 rounded-full transition-all duration-300"
             style={{ height: `${Math.min(100, state.collectedO2Volume)}%` }}
           />
         </div>
         <div>
-          <div className="text-[10px] text-slate-400">Khí Oxy tích lũy trong ống</div>
-          <div className="text-xs font-bold text-white">{Math.round(state.collectedO2Volume)}% thể tích</div>
+          <div className="text-[10px] text-slate-500">Khí Oxy tích lũy trong ống</div>
+          <div className="text-xs font-bold text-slate-800">{Math.round(state.collectedO2Volume)}% thể tích</div>
         </div>
       </div>
 
       {/* Flame Burst Toast */}
       {state.glowingSplintActive && state.splintBurstEffect && state.collectedO2Volume >= 25 && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-amber-950/95 border border-amber-500 text-amber-200 px-5 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-3 animate-bounce z-20">
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-950 px-5 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-3 animate-bounce z-20 font-bold border-2 border-amber-300">
           <span className="text-2xl">🔥</span>
           <div>
-            <div className="text-xs font-extrabold text-amber-300">Que đóm bùng cháy mãnh liệt!</div>
-            <div className="text-[11px] text-amber-200/90">Chứng minh chất khí thoát ra là Khí Oxy ($O_2$) duy trì sự cháy!</div>
+            <div className="text-xs font-extrabold">Que đóm bùng cháy mãnh liệt!</div>
+            <div className="text-[11px] font-medium">Chứng minh chất khí thoát ra là Khí Oxy ($O_2$) duy trì sự cháy!</div>
           </div>
         </div>
       )}
 
       {/* Bottom Hint */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-slate-900/75 backdrop-blur-sm px-4 py-1.5 rounded-full border border-slate-700/50 text-[11px] text-slate-400 pointer-events-none">
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/80 backdrop-blur-sm px-4 py-1.5 rounded-full border border-slate-300 text-[11px] text-slate-600 pointer-events-none shadow-sm">
         🖱️ Giữ chuột trái để xoay 360° • Lăn chuột để zoom • Bấm &quot;Cận cảnh bọt khí&quot; để quan sát rõ hơn
       </div>
     </div>

@@ -109,7 +109,7 @@ export default function BioLabMaster() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 selection:bg-emerald-500 selection:text-slate-950">
+    <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-100 via-sky-50/50 to-emerald-50/40 text-slate-800 selection:bg-emerald-500 selection:text-white">
       {/* Top Navigation Bar */}
       <LabHeader
         activeLab={activeLab}

@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { HydrotropismState } from '../types';
+import { setupLabEnvironment } from './LabEnvironment';
 
 interface Props {
   state: HydrotropismState;
@@ -26,8 +27,6 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
 
     // 1. Scene, Camera, Renderer
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0f1d);
-    scene.fog = new THREE.FogExp2(0x0a0f1d, 0.025);
 
     const camera = new THREE.PerspectiveCamera(
       45,
@@ -35,54 +34,60 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
       0.1,
       100
     );
-    camera.position.set(0, 3.0, 7.5);
+    camera.position.set(0, 3.2, 7.8);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.25;
+    renderer.toneMappingExposure = 1.2;
     container.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.maxPolarAngle = Math.PI / 2 + 0.05;
+    controls.maxPolarAngle = Math.PI / 2 + 0.02;
     controls.minDistance = 2.5;
     controls.maxDistance = 16;
     controls.target.set(0, 1.6, 0);
 
-    // 2. High Quality Lab Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
-    scene.add(ambientLight);
+    // 2. Setup Realistic Bright Laboratory Environment
+    setupLabEnvironment(scene);
 
-    // Front Key Light illuminating the root chamber directly
-    const frontLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    frontLight.position.set(0, 4, 7);
-    scene.add(frontLight);
+    // 3. Observation Chamber Swivel Stand (Giá xoay hộp rễ thí nghiệm)
+    const standBaseGroup = new THREE.Group();
+    scene.add(standBaseGroup);
 
-    const dirLight = new THREE.DirectionalLight(0xa7f3d0, 0.6);
-    dirLight.position.set(4, 8, 4);
-    scene.add(dirLight);
+    // Heavy Aluminum Desktop Stand Base
+    const standBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.2, 1.3, 0.12, 36),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.85, roughness: 0.3 })
+    );
+    standBase.position.y = 0.06;
+    standBase.castShadow = true;
+    standBase.receiveShadow = true;
+    standBaseGroup.add(standBase);
 
-    const backFillLight = new THREE.PointLight(0x38bdf8, 0.8, 6);
-    backFillLight.position.set(0, 2, -2);
-    scene.add(backFillLight);
+    // Center Swivel Column
+    const centerColumn = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.15, 1.6, 24),
+      new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.9, roughness: 0.2 })
+    );
+    centerColumn.position.set(0, 0.85, -0.4);
+    centerColumn.castShadow = true;
+    standBaseGroup.add(centerColumn);
 
-    // 3. Lab Table & Base
-    const tableGeo = new THREE.CylinderGeometry(5.5, 5.8, 0.4, 48);
-    const tableMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3, metalness: 0.6 });
-    const table = new THREE.Mesh(tableGeo, tableMat);
-    table.position.y = -0.2;
-    table.receiveShadow = true;
-    scene.add(table);
+    // Protractor Angle Scale on Swivel
+    const dialPlate = new THREE.Mesh(
+      new THREE.CircleGeometry(0.45, 32),
+      new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.7, roughness: 0.3 })
+    );
+    dialPlate.position.set(0, 1.6, -0.32);
+    standBaseGroup.add(dialPlate);
 
-    const grid = new THREE.GridHelper(9, 18, 0x10b981, 0x1e293b);
-    grid.position.y = 0.01;
-    scene.add(grid);
-
-    // 4. Observation Chamber (Rhizotron Glass Box with HOLLOW FRAME)
+    // 4. Observation Chamber (Rhizotron Glass Sandwich Box)
     const chamberRig = new THREE.Group();
     chamberRig.position.set(0, 1.6, 0);
     scene.add(chamberRig);
@@ -90,125 +95,158 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
     // Frame Material (Sleek anodized aluminum frame)
     const frameMat = new THREE.MeshStandardMaterial({
       color: 0x334155,
-      metalness: 0.8,
-      roughness: 0.3,
+      metalness: 0.85,
+      roughness: 0.25,
     });
 
-    // Top beam (nắp trên có khe thoáng)
+    // Top beam with seedling access slot
     const topBeam = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.12, 0.45), frameMat);
     topBeam.position.set(0, 1.6, 0);
+    topBeam.castShadow = true;
     chamberRig.add(topBeam);
 
-    // Bottom base beam (đế khung)
+    // Bottom base beam
     const bottomBeam = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.15, 0.5), frameMat);
     bottomBeam.position.set(0, -1.6, 0);
+    bottomBeam.castShadow = true;
     chamberRig.add(bottomBeam);
 
-    // Left post
+    // Left and Right Posts
     const leftPost = new THREE.Mesh(new THREE.BoxGeometry(0.12, 3.2, 0.45), frameMat);
     leftPost.position.set(-1.75, 0, 0);
+    leftPost.castShadow = true;
     chamberRig.add(leftPost);
 
-    // Right post
     const rightPost = new THREE.Mesh(new THREE.BoxGeometry(0.12, 3.2, 0.45), frameMat);
     rightPost.position.set(1.75, 0, 0);
+    rightPost.castShadow = true;
     chamberRig.add(rightPost);
 
-    // Dark organic soil backplate (Tấm nền đất mùn phía sau giúp rễ màu sáng nổi bật)
-    const soilBackGeo = new THREE.BoxGeometry(3.4, 3.08, 0.15);
+    // Corner wing-nut bolts (ốc vít cố định bản kính)
+    const boltPositions = [
+      [-1.65, 1.5, 0.22],
+      [1.65, 1.5, 0.22],
+      [-1.65, -1.5, 0.22],
+      [1.65, -1.5, 0.22],
+    ];
+    boltPositions.forEach(([bx, by, bz]) => {
+      const bolt = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.045, 0.045, 0.08, 12),
+        new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.9, roughness: 0.2 })
+      );
+      bolt.rotation.x = Math.PI / 2;
+      bolt.position.set(bx, by, bz);
+      chamberRig.add(bolt);
+    });
+
+    // Dark Organic Soil Contrast Backplate
+    const soilBackGeo = new THREE.BoxGeometry(3.4, 3.08, 0.12);
     const soilBackMat = new THREE.MeshStandardMaterial({
       color: 0x1c120c,
       roughness: 0.95,
       metalness: 0.05,
     });
     const soilBack = new THREE.Mesh(soilBackGeo, soilBackMat);
-    soilBack.position.set(0, 0, -0.1);
+    soilBack.position.set(0, 0, -0.08);
     chamberRig.add(soilBack);
 
-    // Transparent front glass plate
+    // Crystal Clear Front Glass Plate
     const frontGlassGeo = new THREE.BoxGeometry(3.4, 3.1, 0.03);
     const frontGlassMat = new THREE.MeshPhysicalMaterial({
-      color: 0xe0f2fe,
-      transmission: 0.92,
+      color: 0xffffff,
+      transmission: 0.95,
       opacity: 0.85,
       transparent: true,
-      roughness: 0.05,
-      ior: 1.45,
+      roughness: 0.04,
+      ior: 1.48,
       depthWrite: false,
     });
     const frontGlass = new THREE.Mesh(frontGlassGeo, frontGlassMat);
-    frontGlass.position.set(0, 0, 0.2);
+    frontGlass.position.set(0, 0, 0.18);
     chamberRig.add(frontGlass);
 
-    // Depth Grid Lines on glass (Thước đo mm nghiên cứu rễ)
-    const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.25 });
-    for (let gy = -1.2; gy <= 1.2; gy += 0.4) {
+    // Precision Millimeter / Centimeter Metric Grid Lines printed on glass
+    const gridLineMat = new THREE.LineBasicMaterial({ color: 0x0284c7, transparent: true, opacity: 0.35 });
+    for (let gy = -1.2; gy <= 1.2; gy += 0.3) {
       const lineGeo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(-1.6, gy, 0.19),
-        new THREE.Vector3(1.6, gy, 0.19),
+        new THREE.Vector3(-1.6, gy, 0.17),
+        new THREE.Vector3(1.6, gy, 0.17),
       ]);
-      const line = new THREE.Line(lineGeo, lineMat);
+      const line = new THREE.Line(lineGeo, gridLineMat);
+      chamberRig.add(line);
+    }
+    for (let gx = -1.5; gx <= 1.5; gx += 0.3) {
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(gx, -1.4, 0.17),
+        new THREE.Vector3(gx, 1.4, 0.17),
+      ]);
+      const line = new THREE.Line(lineGeo, gridLineMat);
       chamberRig.add(line);
     }
 
-    // 5. Germinated Seedling at Top
+    // 5. Germinated Bean Seedling at Top
     const seedGroup = new THREE.Group();
     seedGroup.position.set(0, 1.25, 0.08);
 
-    // Germinated Bean Seed (Hạt mầm)
+    // Plump Bean Seed (Hạt mầm đậu)
     const seedGeo = new THREE.SphereGeometry(0.24, 20, 20);
     seedGeo.scale(1.25, 0.85, 0.85);
-    const seedMat = new THREE.MeshStandardMaterial({ color: 0xa16207, roughness: 0.6 });
+    const seedMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.55 });
     const seed = new THREE.Mesh(seedGeo, seedMat);
+    seed.castShadow = true;
     seedGroup.add(seed);
 
-    // Green shoot emerging upwards out of the top slot
+    // Green shoot emerging upwards
     const shootGeo = new THREE.CylinderGeometry(0.045, 0.065, 0.55, 12);
     shootGeo.translate(0, 0.3, 0);
-    const shootMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.5 });
+    const shootMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.45 });
     const shoot = new THREE.Mesh(shootGeo, shootMat);
+    shoot.castShadow = true;
     seedGroup.add(shoot);
 
-    // 2 Cotyledon leaves emerging from shoot
+    // 2 Bright green embryonic leaves
     const leafGeo = new THREE.SphereGeometry(0.22, 12, 12);
     leafGeo.scale(1.6, 0.15, 0.7);
     const leafMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.4 });
 
     const leafL = new THREE.Mesh(leafGeo, leafMat);
     leafL.position.set(-0.25, 0.55, 0);
-    leafL.rotation.z = Math.PI / 6;
+    leafL.rotation.z = Math.PI / 5;
+    leafL.castShadow = true;
     seedGroup.add(leafL);
 
     const leafR = new THREE.Mesh(leafGeo, leafMat);
     leafR.position.set(0.25, 0.55, 0);
-    leafR.rotation.z = -Math.PI / 6;
+    leafR.rotation.z = -Math.PI / 5;
+    leafR.castShadow = true;
     seedGroup.add(leafR);
 
     chamberRig.add(seedGroup);
 
     // 6. Water Source Sponge (Miếng bọt biển ẩm)
     const spongeGroup = new THREE.Group();
-    spongeGroup.position.set(-1.1, -0.4, 0.08);
+    spongeGroup.position.set(-1.15, -0.4, 0.08);
 
-    const spongeGeo = new THREE.BoxGeometry(0.75, 0.75, 0.18);
+    const spongeGeo = new THREE.BoxGeometry(0.75, 0.75, 0.16);
     const spongeMat = new THREE.MeshStandardMaterial({
       color: 0x0284c7,
       roughness: 0.8,
       metalness: 0.1,
     });
     const sponge = new THREE.Mesh(spongeGeo, spongeMat);
+    sponge.castShadow = true;
     spongeGroup.add(sponge);
 
     // Moisture diffusion ripple rings
-    const rippleGeo = new THREE.RingGeometry(0.42, 0.52, 32);
+    const rippleGeo = new THREE.RingGeometry(0.42, 0.54, 32);
     const rippleMat = new THREE.MeshBasicMaterial({
       color: 0x38bdf8,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.65,
+      opacity: 0.7,
     });
     const ripple = new THREE.Mesh(rippleGeo, rippleMat);
-    ripple.position.z = 0.1;
+    ripple.position.z = 0.09;
     spongeGroup.add(ripple);
 
     chamberRig.add(spongeGroup);
@@ -219,7 +257,6 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
     let lateralRoots: THREE.Group | null = null;
     let statolithPoints: THREE.Points | null = null;
 
-    // Statolith particles setup (X-Ray view of root cap amyloplasts)
     const statolithCount = 50;
     const statolithGeo = new THREE.BufferGeometry();
     const statolithPositions = new Float32Array(statolithCount * 3);
@@ -231,7 +268,7 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
     statolithGeo.setAttribute('position', new THREE.BufferAttribute(statolithPositions, 3));
     const statolithMat = new THREE.PointsMaterial({
       color: 0xf59e0b,
-      size: 0.07,
+      size: 0.08,
       transparent: true,
       opacity: 0.95,
       blending: THREE.AdditiveBlending,
@@ -240,15 +277,12 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
     statolithPoints.visible = false;
     chamberRig.add(statolithPoints);
 
-    // Function to rebuild root geometry
     function updateRootGeometry(angleRad: number, s: HydrotropismState) {
       if (rootMesh) chamberRig.remove(rootMesh);
       if (rootCapMesh) chamberRig.remove(rootCapMesh);
       if (lateralRoots) chamberRig.remove(lateralRoots);
 
       const length = 2.2;
-      // Start at seed bottom: (0, 1.15, 0.08)
-      // Tip bends towards angleRad
       const tipX = Math.sin(angleRad) * (length * 0.85);
       const tipY = 1.15 - Math.cos(angleRad) * length;
 
@@ -259,14 +293,13 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
 
       const rootCurve = new THREE.CubicBezierCurve3(p0, p1, p2, p3);
 
-      // Tube geometry: Clean, crisp, bright creamy root
       const tubeGeo = new THREE.TubeGeometry(rootCurve, 32, 0.075, 14, false);
       const tubeMat = new THREE.MeshStandardMaterial({
-        color: s.xrayStatoliths ? 0x22d3ee : 0xfef08a,
-        emissive: s.xrayStatoliths ? 0x0891b2 : 0xfef08a,
-        emissiveIntensity: s.xrayStatoliths ? 0.6 : 0.2,
-        roughness: 0.5,
-        metalness: 0.1,
+        color: s.xrayStatoliths ? 0x06b6d4 : 0xfef08a,
+        emissive: s.xrayStatoliths ? 0x0891b2 : 0xfde047,
+        emissiveIntensity: s.xrayStatoliths ? 0.6 : 0.25,
+        roughness: 0.45,
+        metalness: 0.05,
         transparent: s.xrayStatoliths,
         opacity: s.xrayStatoliths ? 0.45 : 1.0,
       });
@@ -275,7 +308,7 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
       rootMesh.castShadow = true;
       chamberRig.add(rootMesh);
 
-      // Root tip cap (Chóp rễ sinh trưởng)
+      // Root tip cap (Chóp rễ)
       const capGeo = new THREE.ConeGeometry(0.085, 0.22, 14);
       capGeo.translate(0, -0.11, 0);
       const capMat = new THREE.MeshStandardMaterial({
@@ -289,7 +322,6 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
       rootCapMesh.rotation.z = -angleRad;
       chamberRig.add(rootCapMesh);
 
-      // Statoliths position at root cap
       if (statolithPoints && s.xrayStatoliths) {
         statolithPoints.visible = true;
         statolithPoints.position.copy(p3);
@@ -309,7 +341,6 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
         branch.rotation.z = (Math.PI / 3) * dir;
         lateralRoots.add(branch);
 
-        // Sub-branch
         const subBranch = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.025, 0.25, 8), tubeMat);
         subBranch.position.set(pt.x + dir * 0.2, pt.y + 0.1, pt.z);
         subBranch.rotation.z = (Math.PI / 2.5) * dir;
@@ -329,11 +360,9 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
       const s = stateRef.current;
       const playing = isPlayingRef.current;
 
-      // Update Chamber Rotation (0 or 90 degrees)
       const targetChamberRot = (s.boxRotation * Math.PI) / 180;
       chamberRig.rotation.z = THREE.MathUtils.lerp(chamberRig.rotation.z, targetChamberRot, delta * 3.5);
 
-      // Update Sponge / Water Source Position
       let spongeX = 0;
       let spongeY = -0.9;
       if (s.waterSourcePos === 'left') {
@@ -351,15 +380,13 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
       }
       spongeGroup.position.set(spongeX, spongeY, 0.08);
 
-      // Target Root Angle:
       let targetDeg = 0;
       if (s.waterSourcePos === 'left') targetDeg = -38;
       else if (s.waterSourcePos === 'right') targetDeg = 38;
       else if (s.waterSourcePos === 'bottom') targetDeg = 0;
 
-      // Gravitropism competition when box is turned 90°:
       if (s.boxRotation > 45) {
-        targetDeg += 25; // gravity pulls downwards
+        targetDeg += 25;
       }
 
       const targetRad = (targetDeg * Math.PI) / 180;
@@ -372,7 +399,6 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
 
       updateRootGeometry(currentAngleRef.current, s);
 
-      // Animate ripple pulse around moisture sponge
       const time = clock.getElapsedTime();
       ripple.scale.setScalar(1 + Math.sin(time * 3.5) * 0.12);
 
@@ -402,45 +428,45 @@ export default function RootTropismScene({ state, onUpdateRootAngle, isPlaying }
   }, []);
 
   return (
-    <div className="relative w-full h-full min-h-[480px] rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-2xl">
+    <div className="relative w-full h-full min-h-[480px] rounded-2xl overflow-hidden bg-slate-100 border border-slate-300 shadow-xl">
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
       {/* Floating 3D HUD Badges */}
       <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
-        <div className="flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-emerald-400 shadow-lg">
+        <div className="flex items-center gap-2 bg-white/90 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-emerald-700 shadow-sm">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          Hộp Kính Quan Sát Rễ Cây (Rhizotron 3D)
+          Phòng Thí Nghiệm Sinh Học • Mô Hình Hướng Nước & Rễ
         </div>
-        <div className="bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800 text-[11px] text-slate-300">
-          Nguồn nước ẩm: <strong className="text-sky-400 uppercase">{state.waterSourcePos}</strong> | Góc xoay hộp: <strong className="text-amber-400">{state.boxRotation}°</strong> | Góc uốn rễ: <strong className="text-emerald-400">{Math.round(((currentAngleRef.current * 180) / Math.PI) * 10) / 10}°</strong>
+        <div className="bg-white/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 text-[11px] text-slate-700 shadow-sm">
+          Nguồn nước ẩm: <strong className="text-sky-600 uppercase">{state.waterSourcePos}</strong> | Góc xoay hộp: <strong className="text-amber-600">{state.boxRotation}°</strong> | Góc uốn rễ: <strong className="text-emerald-600">{Math.round(((currentAngleRef.current * 180) / Math.PI) * 10) / 10}°</strong>
         </div>
       </div>
 
       {state.xrayStatoliths && (
-        <div className="absolute top-4 right-4 bg-amber-950/85 border border-amber-500/60 backdrop-blur-md px-3.5 py-2.5 rounded-2xl text-xs text-amber-300 shadow-2xl max-w-[270px] z-10">
-          <div className="font-bold flex items-center gap-1.5 mb-1 text-amber-400">
-            <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+        <div className="absolute top-4 right-4 bg-amber-50/95 border border-amber-300 backdrop-blur-md px-3.5 py-2.5 rounded-2xl text-xs text-amber-900 shadow-lg max-w-[270px] z-10">
+          <div className="font-bold flex items-center gap-1.5 mb-1 text-amber-700">
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
             X-Ray: Thạch Lạp (Statoliths) Chóp Rễ
           </div>
-          <p className="text-[11px] leading-relaxed text-amber-200/90">
-            Hạt tinh bột nặng ở tế bào chóp rễ lắng xuống cảm nhận trọng lực, đồng thời thụ thể độ ẩm định hướng dòng auxin ức chế tế bào mặt dưới để rễ uốn về phía có nước.
+          <p className="text-[11px] leading-relaxed text-amber-800">
+            Hạt tinh bột nặng ở tế bào chóp rễ lắng xuống cảm nhận trọng lực, đồng thời thụ thể độ ẩm định hướng auxin ức chế tế bào mặt dưới để rễ uốn về phía có nước.
           </p>
         </div>
       )}
 
       {/* Moisture source callout badge */}
-      <div className="absolute bottom-16 left-4 bg-slate-900/90 border border-sky-500/40 backdrop-blur-md px-3.5 py-2 rounded-xl text-xs text-slate-200 shadow-xl flex items-center gap-2.5">
+      <div className="absolute bottom-16 left-4 bg-white/95 border border-sky-300 backdrop-blur-md px-3.5 py-2 rounded-xl text-xs text-slate-800 shadow-md flex items-center gap-2.5">
         <span className="text-xl">💧</span>
         <div>
-          <div className="text-[10px] text-slate-400 font-semibold uppercase">Nguồn ẩm hoạt động</div>
-          <div className="text-xs font-bold text-sky-300">
+          <div className="text-[10px] text-slate-500 font-semibold uppercase">Nguồn ẩm hoạt động</div>
+          <div className="text-xs font-bold text-sky-700">
             {state.waterSourcePos === 'left' ? 'Bên trái (Rễ uốn trái)' : state.waterSourcePos === 'right' ? 'Bên phải (Rễ uốn phải)' : 'Đáy chậu (Rễ cắm thẳng)'}
           </div>
         </div>
       </div>
 
       {/* Bottom Hint */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-slate-900/75 backdrop-blur-sm px-4 py-1.5 rounded-full border border-slate-700/50 text-[11px] text-slate-400 pointer-events-none">
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/80 backdrop-blur-sm px-4 py-1.5 rounded-full border border-slate-300 text-[11px] text-slate-600 pointer-events-none shadow-sm">
         🖱️ Giữ chuột trái để xoay 360° • Lăn chuột để zoom cận cảnh rễ
       </div>
     </div>
