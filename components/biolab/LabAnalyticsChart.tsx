@@ -497,110 +497,127 @@ export default function LabAnalyticsChart({
         )}
       </div>
 
-      {/* 3. Visual SVG Diagram / Curve with Live Tracker */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-bold text-slate-900">{currentCase.title}</span>
-          <span className="text-emerald-700 font-mono font-bold text-xs bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shadow-xs">
-            {currentCase.currentValueBadge}
-          </span>
+      {/* 3 & 4. Visual SVG Diagram & Scientific Conclusion - CHỈ XUẤT HIỆN SAU KHI HỌC SINH ĐÃ CHỌN DỰ ĐOÁN */}
+      {!isAnswered ? (
+        <div className="p-5 rounded-2xl bg-indigo-50/70 border border-dashed border-indigo-200 text-center space-y-2.5 animate-in fade-in duration-200">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center mx-auto text-xl shadow-xs">
+            📊
+          </div>
+          <div className="text-xs font-bold text-slate-800">
+            Sơ đồ đồ thị tương quan & Nhận xét đang ẩn
+          </div>
+          <p className="text-[11px] text-slate-600 max-w-xs mx-auto leading-relaxed">
+            👉 Vui lòng click chọn 1 trong 3 đáp án dự đoán ở trên (<strong>Tỉ lệ thuận</strong>, <strong>Tỉ lệ nghịch</strong> hoặc <strong>Hình chuông</strong>) để mở khóa biểu đồ tương quan và nhận xét khoa học!
+          </p>
         </div>
+      ) : (
+        <div className="space-y-3.5 animate-in fade-in slide-in-from-top-2 duration-300">
+          {/* Visual SVG Diagram / Curve with Live Tracker */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-900">{currentCase.title}</span>
+              <span className="text-emerald-700 font-mono font-bold text-xs bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shadow-xs">
+                {currentCase.currentValueBadge}
+              </span>
+            </div>
 
-        <div className="relative">
-          <svg viewBox="0 0 300 150" className="w-full h-38 bg-slate-50/90 rounded-2xl border border-slate-200 p-1">
-            {/* Grid & Axis Lines */}
-            <line x1="30" y1="125" x2="275" y2="125" stroke="#cbd5e1" strokeWidth="1" />
-            <line x1="30" y1="20" x2="30" y2="125" stroke="#cbd5e1" strokeWidth="1" />
-            <line x1="30" y1="75" x2="275" y2="75" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3,3" />
-            <line x1="150" y1="20" x2="150" y2="125" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3,3" />
+            <div className="relative">
+              <svg viewBox="0 0 300 150" className="w-full h-38 bg-slate-50/90 rounded-2xl border border-slate-200 p-1">
+                {/* Grid & Axis Lines */}
+                <line x1="30" y1="125" x2="275" y2="125" stroke="#cbd5e1" strokeWidth="1" />
+                <line x1="30" y1="20" x2="30" y2="125" stroke="#cbd5e1" strokeWidth="1" />
+                <line x1="30" y1="75" x2="275" y2="75" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3,3" />
+                <line x1="150" y1="20" x2="150" y2="125" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3,3" />
 
-            {/* Optional Custom Annotations */}
-            {currentCase.svgConfig.annotations?.map((ann, idx) => (
-              <line
-                key={idx}
-                x1={ann.x1}
-                y1={ann.y1}
-                x2={ann.x2}
-                y2={ann.y2}
-                stroke={ann.color || '#f59e0b'}
-                strokeWidth="1"
-                strokeDasharray="3,3"
-              />
-            ))}
+                {/* Optional Custom Annotations */}
+                {currentCase.svgConfig.annotations?.map((ann, idx) => (
+                  <line
+                    key={idx}
+                    x1={ann.x1}
+                    y1={ann.y1}
+                    x2={ann.x2}
+                    y2={ann.y2}
+                    stroke={ann.color || '#f59e0b'}
+                    strokeWidth="1"
+                    strokeDasharray="3,3"
+                  />
+                ))}
 
-            {/* Theoretical Curve */}
-            <polyline
-              fill="none"
-              stroke="#059669"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              points={currentCase.svgConfig.polylinePoints}
-            />
+                {/* Theoretical Curve */}
+                <polyline
+                  fill="none"
+                  stroke="#059669"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  points={currentCase.svgConfig.polylinePoints}
+                />
 
-            {/* Live Indicator (Chấm điểm đo thực tế đang chạy từ mô hình 3D) */}
-            <circle
-              cx={currentCase.svgConfig.currentPoint.x}
-              cy={currentCase.svgConfig.currentPoint.y}
-              r="9"
-              fill="#10b981"
-              fillOpacity="0.25"
-              className="animate-ping"
-            />
-            <circle
-              cx={currentCase.svgConfig.currentPoint.x}
-              cy={currentCase.svgConfig.currentPoint.y}
-              r="5.5"
-              fill="#059669"
-              stroke="#ffffff"
-              strokeWidth="1.5"
-            />
+                {/* Live Indicator (Chấm điểm đo thực tế đang chạy từ mô hình 3D) */}
+                <circle
+                  cx={currentCase.svgConfig.currentPoint.x}
+                  cy={currentCase.svgConfig.currentPoint.y}
+                  r="9"
+                  fill="#10b981"
+                  fillOpacity="0.25"
+                  className="animate-ping"
+                />
+                <circle
+                  cx={currentCase.svgConfig.currentPoint.x}
+                  cy={currentCase.svgConfig.currentPoint.y}
+                  r="5.5"
+                  fill="#059669"
+                  stroke="#ffffff"
+                  strokeWidth="1.5"
+                />
 
-            {/* X Axis Labels */}
-            {currentCase.svgConfig.xLabels.map((lbl, idx) => (
-              <text
-                key={idx}
-                x={lbl.x}
-                y="142"
-                textAnchor={lbl.anchor || 'middle'}
-                fill="#64748b"
-                fontSize="8.5"
-                fontWeight="600"
-              >
-                {lbl.text}
-              </text>
-            ))}
+                {/* X Axis Labels */}
+                {currentCase.svgConfig.xLabels.map((lbl, idx) => (
+                  <text
+                    key={idx}
+                    x={lbl.x}
+                    y="142"
+                    textAnchor={lbl.anchor || 'middle'}
+                    fill="#64748b"
+                    fontSize="8.5"
+                    fontWeight="600"
+                  >
+                    {lbl.text}
+                  </text>
+                ))}
 
-            {/* Y Axis Labels */}
-            {currentCase.svgConfig.yLabels.map((lbl, idx) => (
-              <text
-                key={idx}
-                x={lbl.x}
-                y={lbl.y}
-                fill={lbl.color || '#475569'}
-                fontSize="8.5"
-                fontWeight="bold"
-              >
-                {lbl.text}
-              </text>
-            ))}
-          </svg>
+                {/* Y Axis Labels */}
+                {currentCase.svgConfig.yLabels.map((lbl, idx) => (
+                  <text
+                    key={idx}
+                    x={lbl.x}
+                    y={lbl.y}
+                    fill={lbl.color || '#475569'}
+                    fontSize="8.5"
+                    fontWeight="bold"
+                  >
+                    {lbl.text}
+                  </text>
+                ))}
+              </svg>
 
-          {/* Tiny live pill on bottom right */}
-          <div className="absolute top-2 right-2 flex items-center gap-1 bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded-md border border-slate-200 text-[9px] font-bold text-emerald-700 shadow-xs pointer-events-none">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Điểm đo thực nghiệm
+              {/* Tiny live pill on bottom right */}
+              <div className="absolute top-2 right-2 flex items-center gap-1 bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded-md border border-slate-200 text-[9px] font-bold text-emerald-700 shadow-xs pointer-events-none">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Điểm đo thực nghiệm
+              </div>
+            </div>
+          </div>
+
+          {/* Scientific Conclusion & Mechanism Insight (Nhận xét khoa học) */}
+          <div className="text-[11px] text-slate-700 bg-emerald-50/70 p-3 rounded-2xl border border-emerald-200 leading-relaxed space-y-1">
+            <div className="font-bold text-emerald-900 flex items-center gap-1.5 text-xs">
+              <span>💡</span> Nhận xét khoa học:
+            </div>
+            <p className="text-slate-800">{currentCase.insight}</p>
           </div>
         </div>
-      </div>
-
-      {/* 4. Scientific Conclusion & Mechanism Insight (Nhận xét khoa học) */}
-      <div className="text-[11px] text-slate-700 bg-emerald-50/70 p-3 rounded-2xl border border-emerald-200 leading-relaxed space-y-1">
-        <div className="font-bold text-emerald-900 flex items-center gap-1.5 text-xs">
-          <span>💡</span> Nhận xét khoa học:
-        </div>
-        <p className="text-slate-800">{currentCase.insight}</p>
-      </div>
+      )}
     </div>
   );
 }
