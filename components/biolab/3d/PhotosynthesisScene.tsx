@@ -12,6 +12,7 @@ interface Props {
   onUpdateBubbleRate?: (bpm: number, volume: number) => void;
   onOpenInquiry?: () => void;
   isPlaying: boolean;
+  isActive?: boolean;
 }
 
 export default function PhotosynthesisScene({
@@ -20,18 +21,34 @@ export default function PhotosynthesisScene({
   onUpdateBubbleRate,
   onOpenInquiry,
   isPlaying,
+  isActive = true,
 }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
 
   const collectedVolRef = useRef(state.collectedO2Volume);
   collectedVolRef.current = state.collectedO2Volume;
 
   const controlsRef = useRef<OrbitControls | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+
+  // Synchronize size when scene becomes active again
+  useEffect(() => {
+    if (isActive && mountRef.current && rendererRef.current && cameraRef.current) {
+      const c = mountRef.current;
+      if (c.clientWidth > 0 && c.clientHeight > 0) {
+        cameraRef.current.aspect = c.clientWidth / c.clientHeight;
+        cameraRef.current.updateProjectionMatrix();
+        rendererRef.current.setSize(c.clientWidth, c.clientHeight);
+      }
+    }
+  }, [isActive]);
 
   // Darkroom Mode state (Default TRUE for high-contrast directional beam & atmospheric glow)
   const [isDarkroom, setIsDarkroom] = useState<boolean>(true);
@@ -113,6 +130,7 @@ export default function PhotosynthesisScene({
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
+    rendererRef.current = renderer;
     container.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -742,6 +760,7 @@ export default function PhotosynthesisScene({
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
+      if (!isActiveRef.current) return;
 
       const delta = clock.getDelta();
       const s = stateRef.current;

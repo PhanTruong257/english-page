@@ -12,6 +12,7 @@ interface Props {
   onAngleUpdate?: (angle: number) => void;
   onOpenInquiry?: () => void;
   isPlaying: boolean;
+  isActive?: boolean;
 }
 
 export default function PhototropismScene({
@@ -20,12 +21,30 @@ export default function PhototropismScene({
   onAngleUpdate,
   onOpenInquiry,
   isPlaying,
+  isActive = true,
 }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
+
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+
+  // Synchronize size when scene becomes active again
+  useEffect(() => {
+    if (isActive && mountRef.current && rendererRef.current && cameraRef.current) {
+      const c = mountRef.current;
+      if (c.clientWidth > 0 && c.clientHeight > 0) {
+        cameraRef.current.aspect = c.clientWidth / c.clientHeight;
+        cameraRef.current.updateProjectionMatrix();
+        rendererRef.current.setSize(c.clientWidth, c.clientHeight);
+      }
+    }
+  }, [isActive]);
 
   // Track smoothly interpolated bent angle
   const currentBentAngleRef = useRef(0);
@@ -58,6 +77,7 @@ export default function PhototropismScene({
       100
     );
     camera.position.set(0, 3.8, 8.2);
+    cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
@@ -66,6 +86,7 @@ export default function PhototropismScene({
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
+    rendererRef.current = renderer;
     container.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -871,6 +892,7 @@ export default function PhototropismScene({
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
+      if (!isActiveRef.current) return;
 
       const delta = clock.getDelta();
       const s = stateRef.current;

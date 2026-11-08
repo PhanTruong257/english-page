@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import LabHeader from './LabHeader';
 import LabSidebar from './LabSidebar';
 import PhototropismScene from './3d/PhototropismScene';
@@ -18,6 +18,17 @@ export default function BioLabMaster() {
   const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
   const [sidebarTab, setSidebarTab] = useState<'controls' | 'inquiry' | 'analytics' | 'mechanism' | 'missions'>('controls');
+
+  // Track visited labs to keep WebGL instances alive and eliminate tab-switch stutter
+  const [visitedLabs, setVisitedLabs] = useState<Record<LabId, boolean>>({
+    phototropism: true,
+    photosynthesis: false,
+    hydrotropism: false,
+  });
+
+  useEffect(() => {
+    setVisitedLabs((prev) => (prev[activeLab] ? prev : { ...prev, [activeLab]: true }));
+  }, [activeLab]);
 
   // LAB 1 STATE
   const [photoState, setPhotoState] = useState<PhototropismState>({
@@ -128,41 +139,50 @@ export default function BioLabMaster() {
       <main className="flex-1 max-w-[1720px] w-full mx-auto p-3 sm:p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         {/* Left Column: 3D Scene Viewport (7 cols on lg, 8 on xl) */}
         <section className="lg:col-span-7 xl:col-span-8 flex flex-col min-h-[500px] lg:min-h-[720px] relative">
-          {activeLab === 'phototropism' && (
-            <PhototropismScene
-              state={photoState}
-              onUpdateState={setPhotoState}
-              onAngleUpdate={(ang) => setPhotoCurrentAngle(ang)}
-              onOpenInquiry={() => setSidebarTab('inquiry')}
-              isPlaying={isPlaying}
-            />
-          )}
+          <div className={`w-full h-full min-h-[500px] lg:min-h-[720px] ${activeLab === 'phototropism' ? 'block' : 'hidden'}`}>
+            {visitedLabs.phototropism && (
+              <PhototropismScene
+                state={photoState}
+                onUpdateState={setPhotoState}
+                onAngleUpdate={(ang) => setPhotoCurrentAngle(ang)}
+                onOpenInquiry={() => setSidebarTab('inquiry')}
+                isPlaying={isPlaying}
+                isActive={activeLab === 'phototropism'}
+              />
+            )}
+          </div>
 
-          {activeLab === 'photosynthesis' && (
-            <PhotosynthesisScene
-              state={synthState}
-              onUpdateState={setSynthState}
-              onUpdateBubbleRate={(bpm, vol) => {
-                setSynthState((prev) => ({
-                  ...prev,
-                  bubblesPerMinute: bpm,
-                  collectedO2Volume: vol,
-                }));
-              }}
-              onOpenInquiry={() => setSidebarTab('inquiry')}
-              isPlaying={isPlaying}
-            />
-          )}
+          <div className={`w-full h-full min-h-[500px] lg:min-h-[720px] ${activeLab === 'photosynthesis' ? 'block' : 'hidden'}`}>
+            {visitedLabs.photosynthesis && (
+              <PhotosynthesisScene
+                state={synthState}
+                onUpdateState={setSynthState}
+                onUpdateBubbleRate={(bpm, vol) => {
+                  setSynthState((prev) => ({
+                    ...prev,
+                    bubblesPerMinute: bpm,
+                    collectedO2Volume: vol,
+                  }));
+                }}
+                onOpenInquiry={() => setSidebarTab('inquiry')}
+                isPlaying={isPlaying}
+                isActive={activeLab === 'photosynthesis'}
+              />
+            )}
+          </div>
 
-          {activeLab === 'hydrotropism' && (
-            <RootTropismScene
-              state={hydroState}
-              onUpdateState={setHydroState}
-              onUpdateRootAngle={(ang) => setHydroCurrentAngle(ang)}
-              onOpenInquiry={() => setSidebarTab('inquiry')}
-              isPlaying={isPlaying}
-            />
-          )}
+          <div className={`w-full h-full min-h-[500px] lg:min-h-[720px] ${activeLab === 'hydrotropism' ? 'block' : 'hidden'}`}>
+            {visitedLabs.hydrotropism && (
+              <RootTropismScene
+                state={hydroState}
+                onUpdateState={setHydroState}
+                onUpdateRootAngle={(ang) => setHydroCurrentAngle(ang)}
+                onOpenInquiry={() => setSidebarTab('inquiry')}
+                isPlaying={isPlaying}
+                isActive={activeLab === 'hydrotropism'}
+              />
+            )}
+          </div>
         </section>
 
         {/* Right Column: Scientific Control & Analysis Sidebar (5 cols on lg, 4 on xl) */}
