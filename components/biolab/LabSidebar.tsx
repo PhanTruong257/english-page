@@ -58,6 +58,8 @@ export default function LabSidebar({
   const [selectedPrediction, setSelectedPrediction] = useState<Record<string, string>>({});
   const [inquiryChecked, setInquiryChecked] = useState<Record<string, boolean>>({});
   const [inquiryAnswerSelected, setInquiryAnswerSelected] = useState<Record<number, number>>({});
+  const [showRealWorldInsight, setShowRealWorldInsight] = useState<Record<string, boolean>>({});
+  const [studentUserNotes, setStudentUserNotes] = useState<Record<string, string>>({});
   const [inquirySaved, setInquirySaved] = useState(false);
 
   // Quiz state
@@ -1131,12 +1133,69 @@ export default function LabSidebar({
               </div>
 
               {/* Real World Application */}
-              <div className="p-3 rounded-xl bg-purple-50/80 border border-purple-200 space-y-1">
-                <div className="text-[11px] font-bold text-purple-900 flex items-center gap-1.5">
-                  <span>🌍</span> Vận Dụng Đời Sống Thực Tiễn:
+              <div className="p-3.5 rounded-2xl bg-purple-50/80 border border-purple-200/90 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="text-[11px] font-bold text-purple-900 flex items-center gap-1.5">
+                    <span>🌍</span> Vận Dụng Đời Sống Thực Tiễn:
+                  </div>
+                  {/* Click to reveal button: "Giải đáp" */}
+                  <button
+                    onClick={() =>
+                      setShowRealWorldInsight((prev) => ({
+                        ...prev,
+                        [currentTopic.id]: !prev[currentTopic.id],
+                      }))
+                    }
+                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                      showRealWorldInsight[currentTopic.id]
+                        ? 'bg-purple-200/80 text-purple-950 border-purple-300 hover:bg-purple-200'
+                        : 'bg-white text-purple-700 border-purple-300 hover:bg-purple-100 hover:text-purple-900'
+                    }`}
+                  >
+                    <span>{showRealWorldInsight[currentTopic.id] ? '🔒' : '💡'}</span>
+                    <span>{showRealWorldInsight[currentTopic.id] ? 'Ẩn giải đáp' : 'Giải đáp'}</span>
+                  </button>
                 </div>
-                <div className="text-[11px] font-semibold text-slate-800">{currentTopic.realWorld.question}</div>
-                <p className="text-[10px] text-purple-950/80 leading-relaxed pt-0.5">{currentTopic.realWorld.insight}</p>
+
+                <div className="text-xs font-semibold text-slate-800 leading-snug">
+                  {currentTopic.realWorld.question}
+                </div>
+
+                {/* Thought input for students before seeing answer */}
+                {!showRealWorldInsight[currentTopic.id] && (
+                  <div className="space-y-1 pt-0.5">
+                    <input
+                      type="text"
+                      placeholder="Ghi chú suy nghĩ hoặc câu trả lời của bạn..."
+                      value={studentUserNotes[currentTopic.id] || ''}
+                      onChange={(e) =>
+                        setStudentUserNotes((prev) => ({
+                          ...prev,
+                          [currentTopic.id]: e.target.value,
+                        }))
+                      }
+                      className="w-full text-xs px-2.5 py-1.5 bg-white border border-purple-200 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400"
+                    />
+                    <p className="text-[10px] text-purple-700/80 italic">
+                      💡 Tự suy nghĩ câu trả lời trước, sau đó bấm nút <strong>"Giải đáp"</strong> ở trên để đối chiếu.
+                    </p>
+                  </div>
+                )}
+
+                {/* Answer / Insight: ONLY SHOWN WHEN USER CLICKS "Giải đáp" */}
+                {showRealWorldInsight[currentTopic.id] && (
+                  <div className="p-2.5 bg-white/90 rounded-xl border border-purple-200 text-[11px] leading-relaxed text-purple-950 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="font-bold text-purple-800 flex items-center gap-1 text-[11px]">
+                      <span>💡</span> Giải đáp khoa học:
+                    </div>
+                    <p className="text-slate-700">{currentTopic.realWorld.insight}</p>
+                    {studentUserNotes[currentTopic.id] && (
+                      <div className="mt-1.5 pt-1.5 border-t border-purple-100 text-[10px] text-slate-500">
+                        <strong className="text-purple-700">Câu trả lời của bạn:</strong> {studentUserNotes[currentTopic.id]}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Save to Lab Report Button */}
