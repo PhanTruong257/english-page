@@ -149,6 +149,7 @@ export default function BioLabMaster() {
                   collectedO2Volume: vol,
                 }));
               }}
+              onOpenInquiry={() => setSidebarTab('inquiry')}
               isPlaying={isPlaying}
             />
           )}
@@ -158,6 +159,7 @@ export default function BioLabMaster() {
               state={hydroState}
               onUpdateState={setHydroState}
               onUpdateRootAngle={(ang) => setHydroCurrentAngle(ang)}
+              onOpenInquiry={() => setSidebarTab('inquiry')}
               isPlaying={isPlaying}
             />
           )}
