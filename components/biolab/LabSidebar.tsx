@@ -1215,14 +1215,18 @@ export default function LabSidebar({
         {/* TAB 2: ANALYTICS */}
         {activeTab === 'analytics' && (
           <div className="space-y-4">
-            {/* Live Chart */}
+            {/* Live Chart with Correlation Prediction & Scientific Insights */}
             <LabAnalyticsChart
               activeLab={activeLab}
               photoAngle={photoCurrentAngle}
+              photoIntensity={photoState.lightIntensity}
               bubblesRate={synthState.bubblesPerMinute}
               temperature={synthState.waterTemperature}
               lightDistance={synthState.lampDistance}
+              co2Concentration={synthState.co2Concentration}
               rootAngle={hydroCurrentAngle}
+              boxRotation={hydroState.boxRotation}
+              waterSourcePos={hydroState.waterSourcePos}
             />
 
             {/* Metrics Dashboard */}
