@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "BioLab 3D — Phòng Thí Nghiệm Sinh Học Ảo Tương Tác",
+  title: "Moon. Bio Lab 3D — Phòng Thí Nghiệm Sinh Học Ảo Tương Tác",
   description: "Phòng thí nghiệm Sinh học 3D tương tác: Mô phỏng quang hợp, tính hướng sáng, tính hướng nước và cơ chế sinh lý thực vật thời gian thực.",
 };
 

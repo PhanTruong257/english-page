@@ -67,7 +67,7 @@ export default function LabReportModal({
               BÁO CÁO THỰC HÀNH THÍ NGHIỆM SINH HỌC 3D
             </h2>
             <div className="text-sm font-bold text-emerald-700 print:text-emerald-700">
-              Hệ thống Mô phỏng Phòng thí nghiệm Ảo BioLab 3D
+              Hệ thống Mô phỏng Phòng thí nghiệm Ảo Moon. Bio Lab 3D
             </div>
           </div>
 
@@ -263,7 +263,7 @@ export default function LabReportModal({
             <div>
               <div className="font-semibold text-slate-500 print:text-gray-600">Giáo viên hướng dẫn</div>
               <div className="text-[10px] text-slate-400 italic mt-0.5">(Chấm điểm & Nhận xét)</div>
-              <div className="mt-12 font-bold text-emerald-700 print:text-black">BioLab 3D Verified ✓</div>
+              <div className="mt-12 font-bold text-emerald-700 print:text-black">Moon. Bio Lab 3D Verified ✓</div>
             </div>
           </div>
         </div>

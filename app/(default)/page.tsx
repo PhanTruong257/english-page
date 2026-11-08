@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "BioLab 3D — Phòng Thí Nghiệm Sinh Học Ảo Tương Tác",
+  title: "Moon. Bio Lab 3D — Phòng Thí Nghiệm Sinh Học Ảo Tương Tác",
   description: "Trải nghiệm mô phỏng thí nghiệm sinh học 3D tương tác: Thí nghiệm quang hợp ở rong đuôi chó, tính hướng sáng của cây, tính hướng nước của rễ.",
 };
 

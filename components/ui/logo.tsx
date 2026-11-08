@@ -5,7 +5,7 @@ export default function Logo() {
     <Link
       href="/"
       className="inline-flex items-center gap-2.5 font-bold text-xl tracking-tight text-white group"
-      aria-label="BioLab 3D"
+      aria-label="Moon. Bio Lab 3D"
     >
       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 shadow-md shadow-emerald-500/25 transition group-hover:scale-105">
         <svg
@@ -27,7 +27,7 @@ export default function Logo() {
       </div>
       <div className="flex flex-col">
         <span className="flex items-center leading-none font-extrabold text-white text-lg tracking-wide">
-          Bio<span className="text-emerald-400 ml-0.5">Lab 3D</span>
+          Moon. Bio<span className="text-emerald-400 ml-1">Lab 3D</span>
         </span>
         <span className="text-[10px] font-semibold tracking-wider uppercase text-emerald-400/80">
           Phòng thí nghiệm ảo

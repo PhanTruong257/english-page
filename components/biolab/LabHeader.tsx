@@ -44,7 +44,7 @@ export default function LabHeader({
             </div>
             <div>
               <div className="font-extrabold text-base text-slate-900 tracking-tight flex items-center gap-1.5">
-                Bio<span className="text-emerald-600">Lab 3D</span>
+                <span>Moon. Bio</span><span className="text-emerald-600"> Lab 3D</span>
                 <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
                   Virtual Lab
                 </span>

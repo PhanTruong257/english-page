@@ -11,10 +11,10 @@ export default function Footer({ border = false }: { border?: boolean }) {
               <Logo />
             </div>
             <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
-              BioLab 3D là nền tảng phòng thí nghiệm ảo Sinh học trực quan, cho phép học sinh và giáo viên thao tác, điều chỉnh biến số và quan sát các hiện tượng sinh lý thực vật thời gian thực trong không gian 3D.
+              Moon. Bio Lab 3D là nền tảng phòng thí nghiệm ảo Sinh học trực quan, cho phép học sinh và giáo viên thao tác, điều chỉnh biến số và quan sát các hiện tượng sinh lý thực vật thời gian thực trong không gian 3D.
             </p>
             <div className="text-[11px] text-slate-500">
-              &copy; {new Date().getFullYear()} BioLab 3D — Phòng thí nghiệm Sinh học tương tác.
+              &copy; {new Date().getFullYear()} Moon. Bio Lab 3D — Phòng thí nghiệm Sinh học tương tác.
             </div>
           </div>
 

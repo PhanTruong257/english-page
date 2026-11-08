@@ -136,7 +136,7 @@ export function setupLabEnvironment(scene: THREE.Scene, options?: { isDarkroom?:
   pCtx.fillRect(0, 0, 512, 48);
   pCtx.fillStyle = '#ffffff';
   pCtx.font = 'bold 22px sans-serif';
-  pCtx.fillText('BIOLAB 3D • PLANT PHYSIOLOGY', 20, 32);
+  pCtx.fillText('MOON. BIOLAB 3D • PLANT PHYSIOLOGY', 20, 32);
 
   // Simple botanical illustration on poster
   pCtx.fillStyle = isDarkroom ? '#0f172a' : '#f0fdf4';
