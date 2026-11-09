@@ -863,25 +863,6 @@ export default function RootTropismScene({
     }`}>
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* Floating 3D HUD Badges */}
-      <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none z-10">
-        <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-semibold backdrop-blur-md shadow-sm transition-colors ${
-          isDarkroom
-            ? 'bg-slate-900/85 border-slate-700/80 text-emerald-400'
-            : 'bg-white/90 border-slate-200 text-emerald-700'
-        }`}>
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          Phòng Thí Nghiệm Sinh Học • Mô Hình Hướng Nước & Rễ
-        </div>
-        <div className={`px-3 py-1.5 rounded-xl border text-[11px] backdrop-blur-md shadow-sm transition-colors ${
-          isDarkroom
-            ? 'bg-slate-900/80 border-slate-800 text-slate-300'
-            : 'bg-white/85 border-slate-200 text-slate-700'
-        }`}>
-          Nguồn nước ẩm: <strong className="text-sky-400 uppercase">{state.waterSourcePos}</strong> | Góc xoay hộp: <strong className="text-amber-400">{state.boxRotation}°</strong> | Góc uốn rễ: <strong className="text-emerald-400">{Math.round(((currentAngleRef.current * 180) / Math.PI) * 10) / 10}°</strong>
-        </div>
-      </div>
-
       {/* Top HUD Controls Bar */}
       <div className="absolute top-4 right-4 flex items-center gap-2 z-20 flex-wrap justify-end">
         {/* Darkroom Mode Toggle Button */}

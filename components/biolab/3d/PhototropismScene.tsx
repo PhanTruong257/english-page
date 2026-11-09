@@ -1019,17 +1019,6 @@ export default function PhototropismScene({
     <div className="relative w-full h-full min-h-[480px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-700 shadow-2xl">
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* Floating 3D HUD Badges */}
-      <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
-        <div className="flex items-center gap-2 bg-slate-900/85 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-emerald-400 shadow-md">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-          Phòng Thí Nghiệm Sinh Học • Mô Hình Hướng Sáng
-        </div>
-        <div className="bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/80 text-[11px] text-slate-200 shadow-md">
-          Góc đèn: <strong className="text-amber-400">{state.lightAngle}°</strong> | Cường độ: <strong className="text-sky-400">{state.lightIntensity}%</strong>
-        </div>
-      </div>
-
       {/* Action Buttons Top Right: Darkroom + X-Ray + Anatomy + Inquiry + Lamp Controls */}
       <div className="absolute top-4 right-4 flex items-center gap-2 z-20 flex-wrap justify-end">
         {/* Darkroom Mode Toggle Button */}

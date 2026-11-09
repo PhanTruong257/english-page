@@ -1093,25 +1093,6 @@ export default function PhotosynthesisScene({
     }`}>
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* Floating 3D HUD Badges */}
-      <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none z-10">
-        <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-semibold backdrop-blur-md shadow-sm transition-colors ${
-          isDarkroom
-            ? 'bg-slate-900/85 border-slate-700/80 text-cyan-400'
-            : 'bg-white/90 border-slate-200 text-cyan-700'
-        }`}>
-          <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse" />
-          Phòng Thí Nghiệm Sinh Học • Mô Hình Quang Hợp Ở Rong
-        </div>
-        <div className={`px-3 py-1.5 rounded-xl border text-[11px] backdrop-blur-md shadow-sm transition-colors ${
-          isDarkroom
-            ? 'bg-slate-900/80 border-slate-800 text-slate-300'
-            : 'bg-white/85 border-slate-200 text-slate-700'
-        }`}>
-          Đèn: <strong className="text-amber-500">{state.lampDistance} cm</strong> | CO₂: <strong className="text-emerald-400">{state.co2Concentration}%</strong> | Nước: <strong className="text-cyan-400">{state.waterTemperature}°C</strong> | Kính: <strong className="text-pink-400 uppercase">{state.colorFilter}</strong>
-        </div>
-      </div>
-
       {/* Top HUD Controls Bar */}
       <div className="absolute top-4 right-4 flex items-center gap-2 z-20 flex-wrap justify-end">
         {/* Darkroom Mode Toggle Button */}
