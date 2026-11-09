@@ -478,49 +478,147 @@ export default function RootTropismScene({
 
     chamberRig.add(seedGroup);
 
-    // 7. Cellulose Moisture Sponge with Radiant Moisture Gradient Halo
+    // 7. Cellulose Moisture Sponge with Glistening Water Droplets & Volumetric Vapor Gradient
     const spongeGroup = new THREE.Group();
     spongeGroup.position.set(-1.18, -0.4, 0.08);
 
-    // Porous Cellulose Sponge Block
-    const spongeGeo = new THREE.BoxGeometry(0.8, 0.8, 0.18);
-    const spongeMat = new THREE.MeshStandardMaterial({
-      color: 0x0284c7,
-      roughness: 0.8,
-      metalness: 0.1,
+    // Wet Cellulose Sponge Block (Khối mút xốp đẫm nước 3D bo cạnh ướt át)
+    const spongeGeo = new THREE.BoxGeometry(0.85, 0.85, 0.22);
+    const spongeMat = new THREE.MeshPhysicalMaterial({
+      color: 0x0284c7, // Vibrant wet ocean cyan-blue
+      emissive: 0x0369a1,
+      emissiveIntensity: 0.28,
+      roughness: 0.18,
+      metalness: 0.05,
+      clearcoat: 1.0, // Wet glossy sheen
+      clearcoatRoughness: 0.08,
+      reflectivity: 0.9,
     });
     const sponge = new THREE.Mesh(spongeGeo, spongeMat);
     sponge.castShadow = true;
     spongeGroup.add(sponge);
 
-    // Moisture Diffusion Halo 1 (Quầng ẩm khuếch tán trong thạch)
-    const halo1Geo = new THREE.RingGeometry(0.44, 0.62, 36);
-    const halo1Mat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
+    // 3D Porous Texture: Darker micro-pores indented on the sponge surface
+    const poreMat = new THREE.MeshBasicMaterial({ color: 0x075985, transparent: true, opacity: 0.75 });
+    const poreGeo = new THREE.CircleGeometry(0.028, 12);
+    for (let px = -0.32; px <= 0.32; px += 0.16) {
+      for (let py = -0.32; py <= 0.32; py += 0.16) {
+        const pore = new THREE.Mesh(poreGeo, poreMat);
+        pore.position.set(px + (Math.sin(px * 10 + py * 5)) * 0.03, py + (Math.cos(px * 5 - py * 10)) * 0.03, 0.112);
+        spongeGroup.add(pore);
+      }
+    }
+
+    // Glistening Liquid Water Droplets (Các giọt nước đọng long lanh trên bề mặt miếng mút)
+    const waterDropletMat = new THREE.MeshPhysicalMaterial({
+      color: 0xe0f2fe,
+      transmission: 0.92,
+      opacity: 0.95,
+      transparent: true,
+      roughness: 0.02,
+      ior: 1.333, // True index of refraction of water
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.03,
+      depthWrite: false,
+    });
+
+    const dropGlintMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthWrite: false });
+
+    // Seeded glistening droplets
+    const dropletCoords = [
+      { x: -0.24, y: 0.26, r: 0.065 },
+      { x: 0.18, y: 0.22, r: 0.055 },
+      { x: -0.16, y: -0.18, r: 0.075 },
+      { x: 0.25, y: -0.20, r: 0.05 },
+      { x: 0.04, y: -0.05, r: 0.082 },
+      { x: -0.30, y: -0.02, r: 0.045 },
+      { x: 0.30, y: 0.08, r: 0.06 },
+      { x: -0.05, y: 0.30, r: 0.052 },
+      { x: 0.12, y: -0.32, r: 0.048 },
+    ];
+
+    dropletCoords.forEach((d) => {
+      const dropGeo = new THREE.SphereGeometry(d.r, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+      const dropMesh = new THREE.Mesh(dropGeo, waterDropletMat);
+      dropMesh.position.set(d.x, d.y, 0.11);
+      dropMesh.renderOrder = 8;
+      spongeGroup.add(dropMesh);
+
+      // Specular shine glint
+      const glint = new THREE.Mesh(new THREE.SphereGeometry(d.r * 0.25, 8, 8), dropGlintMat);
+      glint.position.set(d.x + d.r * 0.32, d.y + d.r * 0.32, 0.11 + d.r * 0.65);
+      glint.renderOrder = 9;
+      spongeGroup.add(glint);
+    });
+
+    // Hanging wet water bead at bottom edge of sponge
+    const hangingDropGeo = new THREE.ConeGeometry(0.055, 0.12, 16);
+    hangingDropGeo.rotateX(Math.PI);
+    const hangingDrop = new THREE.Mesh(hangingDropGeo, waterDropletMat);
+    hangingDrop.position.set(0.08, -0.48, 0.05);
+    hangingDrop.renderOrder = 8;
+    spongeGroup.add(hangingDrop);
+
+    // Volumetric Soft Radial Moisture Diffusion Gradient (Quầng ẩm lan tỏa mềm mại vào đất)
+    const haloCanvas = document.createElement('canvas');
+    haloCanvas.width = 256;
+    haloCanvas.height = 256;
+    const hctx = haloCanvas.getContext('2d')!;
+    const grad = hctx.createRadialGradient(128, 128, 30, 128, 128, 126);
+    grad.addColorStop(0, 'rgba(56, 189, 248, 0.70)'); // High humidity core
+    grad.addColorStop(0.45, 'rgba(14, 165, 233, 0.36)'); // Mid humidity
+    grad.addColorStop(0.85, 'rgba(2, 132, 199, 0.10)'); // Diffusion boundary
+    grad.addColorStop(1, 'rgba(2, 132, 199, 0)');
+    hctx.fillStyle = grad;
+    hctx.fillRect(0, 0, 256, 256);
+
+    const haloTex = new THREE.CanvasTexture(haloCanvas);
+    const haloGeo = new THREE.PlaneGeometry(2.5, 2.5);
+    const haloMat = new THREE.MeshBasicMaterial({
+      map: haloTex,
+      transparent: true,
+      depthWrite: false,
       side: THREE.DoubleSide,
+    });
+    const moistureHalo = new THREE.Mesh(haloGeo, haloMat);
+    moistureHalo.position.z = 0.095;
+    moistureHalo.renderOrder = 3;
+    spongeGroup.add(moistureHalo);
+
+    // Floating Moisture Vapor Mist Particles (Các vi hạt hơi nước khuếch tán trong không khí)
+    const vaporCount = 45;
+    const vaporGeo = new THREE.BufferGeometry();
+    const vaporPositions = new Float32Array(vaporCount * 3);
+    const vaporPhases = new Float32Array(vaporCount);
+    const vaporRadii = new Float32Array(vaporCount);
+
+    for (let vi = 0; vi < vaporCount; vi++) {
+      const angle = (vi / vaporCount) * Math.PI * 2;
+      const dist = 0.45 + (vi % 5) * 0.18;
+      vaporPositions[vi * 3 + 0] = Math.cos(angle) * dist;
+      vaporPositions[vi * 3 + 1] = Math.sin(angle) * dist;
+      vaporPositions[vi * 3 + 2] = 0.1 + ((vi % 3) - 1) * 0.02;
+      vaporPhases[vi] = angle;
+      vaporRadii[vi] = dist;
+    }
+    vaporGeo.setAttribute('position', new THREE.BufferAttribute(vaporPositions, 3));
+    const vaporMat = new THREE.PointsMaterial({
+      color: 0x7dd3fc,
+      size: 0.065,
       transparent: true,
       opacity: 0.65,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
     });
-    const halo1 = new THREE.Mesh(halo1Geo, halo1Mat);
-    halo1.position.z = 0.095;
-    spongeGroup.add(halo1);
-
-    // Moisture Diffusion Halo 2 (Outer faint moisture perimeter)
-    const halo2Geo = new THREE.RingGeometry(0.64, 0.88, 36);
-    const halo2Mat = new THREE.MeshBasicMaterial({
-      color: 0x0ea5e9,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.32,
-    });
-    const halo2 = new THREE.Mesh(halo2Geo, halo2Mat);
-    halo2.position.z = 0.092;
-    spongeGroup.add(halo2);
+    const vaporParticles = new THREE.Points(vaporGeo, vaporMat);
+    vaporParticles.renderOrder = 7;
+    spongeGroup.add(vaporParticles);
 
     chamberRig.add(spongeGroup);
 
-    // 8. Dynamic Organic Taproot Geometry with Root Cap & Root Hairs
+    // 8. Dynamic Organic Taproot Geometry with Root Cap & 3D Conspicuous Root Hairs
     let rootMesh: THREE.Mesh | null = null;
+    let rootCoreMesh: THREE.Mesh | null = null;
     let rootCapMesh: THREE.Mesh | null = null;
     let rootHairsGroup: THREE.Group | null = null;
     let statolithPoints: THREE.Points | null = null;
@@ -570,11 +668,42 @@ export default function RootTropismScene({
     auxinParticles.visible = false;
     chamberRig.add(auxinParticles);
 
+    // Materials for Root Hairs and Capillary Droplets
+    const rootHairMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: 0xbae6fd,
+      emissiveIntensity: 0.65,
+      roughness: 0.2,
+      metalness: 0.05,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+
+    const hairBeadGeo = new THREE.SphereGeometry(0.012, 8, 8);
+    const hairBeadMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 });
+
     // Botanical Tapered Taproot Geometry (Rễ cọc mọng nước với các vùng giải phẫu)
     function updateRootGeometry(angleRad: number, s: HydrotropismState) {
-      if (rootMesh) chamberRig.remove(rootMesh);
-      if (rootCapMesh) chamberRig.remove(rootCapMesh);
-      if (rootHairsGroup) chamberRig.remove(rootHairsGroup);
+      if (rootMesh) {
+        rootMesh.geometry.dispose();
+        chamberRig.remove(rootMesh);
+      }
+      if (rootCoreMesh) {
+        rootCoreMesh.geometry.dispose();
+        chamberRig.remove(rootCoreMesh);
+      }
+      if (rootCapMesh) {
+        rootCapMesh.geometry.dispose();
+        chamberRig.remove(rootCapMesh);
+      }
+      if (rootHairsGroup) {
+        rootHairsGroup.traverse((obj) => {
+          if ((obj as THREE.Mesh).geometry && (obj as THREE.Mesh).geometry !== hairBeadGeo) {
+            (obj as THREE.Mesh).geometry.dispose();
+          }
+        });
+        chamberRig.remove(rootHairsGroup);
+      }
 
       const length = 2.25;
       const tipX = Math.sin(angleRad) * (length * 0.85);
@@ -600,8 +729,8 @@ export default function RootTropismScene({
         const N = frames.normals[i];
         const B = frames.binormals[i];
 
-        // Botanical Taper: Base collar (r = 0.092) down to elongation tip (r = 0.040)
-        const radius = 0.092 - (u * 0.052);
+        // Botanical Taper: Base collar (r = 0.098) down to elongation tip (r = 0.042)
+        const radius = 0.098 - (u * 0.056);
 
         for (let j = 0; j <= radialSegments; j++) {
           const v = j / radialSegments;
@@ -633,11 +762,15 @@ export default function RootTropismScene({
       rootGeo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
       rootGeo.setIndex(indices);
 
-      // Translucent succulent jade-ivory root material
-      const rootMat = new THREE.MeshStandardMaterial({
+      // Translucent succulent jade-ivory root material (Mô thực vật mọng nước có lớp bóng ẩm)
+      const rootMat = new THREE.MeshPhysicalMaterial({
         color: s.xrayStatoliths ? 0x06b6d4 : 0xfef9c3,
-        roughness: 0.35,
+        emissive: s.xrayStatoliths ? 0x0891b2 : 0xfef08a,
+        emissiveIntensity: s.xrayStatoliths ? 0.6 : 0.22,
+        roughness: 0.28,
         metalness: 0.04,
+        clearcoat: 0.7,
+        clearcoatRoughness: 0.12,
         transparent: s.xrayStatoliths,
         opacity: s.xrayStatoliths ? 0.45 : 1.0,
       });
@@ -645,6 +778,19 @@ export default function RootTropismScene({
       rootMesh = new THREE.Mesh(rootGeo, rootMat);
       rootMesh.castShadow = true;
       chamberRig.add(rootMesh);
+
+      // Inner Vascular Cylinder Stele (Lõi trung trụ xylem & phloem dẫn nước)
+      const coreCurve = new THREE.CubicBezierCurve3(p0, p1, p2, p2.clone().addScaledVector(p3.clone().sub(p2), 0.7));
+      const coreGeo = new THREE.TubeGeometry(coreCurve, 28, 0.022, 10, false);
+      const coreMat = new THREE.MeshStandardMaterial({
+        color: 0x86efac,
+        emissive: 0x22c55e,
+        emissiveIntensity: 0.35,
+        transparent: true,
+        opacity: 0.5,
+      });
+      rootCoreMesh = new THREE.Mesh(coreGeo, coreMat);
+      chamberRig.add(rootCoreMesh);
 
       // Amber Meristematic Root Cap (Calyptra - Chóp rễ bao bọc mô phân sinh đỉnh)
       const capGeo = new THREE.ConeGeometry(0.048, 0.24, 18);
@@ -661,29 +807,115 @@ export default function RootTropismScene({
       rootCapMesh.quaternion.setFromUnitVectors(axis, tangent);
       chamberRig.add(rootCapMesh);
 
-      // Delicate Root Hairs in Maturation Zone (Vùng lông hút rễ li ti)
+      // 3D CONSPICUOUS ROOT HAIRS (Miền lông hút rễ 3D tơ trắng muốt cực kỳ rõ nét)
       rootHairsGroup = new THREE.Group();
-      const hairMat = new THREE.LineBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.7,
-      });
+      rootHairsGroup.renderOrder = 10;
 
-      for (let h = 0.22; h <= 0.68; h += 0.035) {
-        const hPt = rootCurve.getPoint(h);
-        for (let side of [-1, 1]) {
-          const hairGeo = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(hPt.x, hPt.y, 0.08),
-            new THREE.Vector3(
-              hPt.x + side * (0.09 + Math.random() * 0.06),
-              hPt.y + (Math.random() - 0.5) * 0.04,
-              0.08
-            ),
-          ]);
-          const hairLine = new THREE.Line(hairGeo, hairMat);
-          rootHairsGroup.add(hairLine);
+      const hairVertices: number[] = [];
+      const hairIndices: number[] = [];
+      const hairNormals: number[] = [];
+      let hairVertOffset = 0;
+
+      const spongePos = spongeGroup.position;
+      const numRings = 24;
+      const hairsPerRing = 6;
+
+      for (let rIdx = 0; rIdx < numRings; rIdx++) {
+        const u = 0.22 + (rIdx / (numRings - 1)) * 0.48; // Maturation zone
+        const pt = rootCurve.getPoint(u);
+        const radius = 0.098 - (u * 0.056);
+
+        // Frenet frames for cross-section
+        const tangentAtU = rootCurve.getTangent(u);
+        const upVec = new THREE.Vector3(0, 0, 1);
+        const normalVec = new THREE.Vector3().crossVectors(tangentAtU, upVec).normalize();
+        const binormalVec = new THREE.Vector3().crossVectors(tangentAtU, normalVec).normalize();
+
+        for (let hIdx = 0; hIdx < hairsPerRing; hIdx++) {
+          const theta = (hIdx / hairsPerRing) * Math.PI * 2 + (rIdx * 0.35);
+          const radDir = new THREE.Vector3()
+            .copy(normalVec).multiplyScalar(Math.cos(theta))
+            .addScaledVector(binormalVec, Math.sin(theta))
+            .normalize();
+
+          const basePt = new THREE.Vector3().copy(pt).addScaledVector(radDir, radius * 0.95);
+
+          // Hydrotropic Orientation: Hair grows significantly longer and curls towards water source
+          const toWater = new THREE.Vector3(spongePos.x - basePt.x, spongePos.y - basePt.y, 0);
+          const toWaterDir = toWater.clone().normalize();
+          const dotToWater = radDir.dot(toWaterDir);
+
+          let hairLength: number;
+          let tipDir: THREE.Vector3;
+
+          if (dotToWater > 0) {
+            // Hair on wet side facing sponge: significantly longer, reaches actively toward sponge
+            hairLength = 0.18 + dotToWater * 0.16 + (Math.sin(rIdx * 7 + hIdx) * 0.03);
+            tipDir = new THREE.Vector3()
+              .copy(radDir).multiplyScalar(0.4)
+              .addScaledVector(toWaterDir, 0.6)
+              .normalize();
+          } else {
+            // Hair on dry side: shorter
+            hairLength = 0.07 + Math.abs(Math.sin(rIdx * 5 + hIdx)) * 0.04;
+            tipDir = radDir.clone();
+          }
+
+          const tipPt = new THREE.Vector3().copy(basePt).addScaledVector(tipDir, hairLength);
+
+          // Volumetric 3D Cross-Quad (Two intersecting perpendicular quads for full 3D visibility)
+          const hairWidthBase = 0.009;
+          const hairWidthTip = 0.003;
+          const crossA = new THREE.Vector3().crossVectors(tipDir, tangentAtU).normalize();
+          const crossB = new THREE.Vector3().crossVectors(tipDir, crossA).normalize();
+
+          // Quad A
+          const qA0 = new THREE.Vector3().copy(basePt).addScaledVector(crossA, -hairWidthBase);
+          const qA1 = new THREE.Vector3().copy(basePt).addScaledVector(crossA, hairWidthBase);
+          const qA2 = new THREE.Vector3().copy(tipPt).addScaledVector(crossA, hairWidthTip);
+          const qA3 = new THREE.Vector3().copy(tipPt).addScaledVector(crossA, -hairWidthTip);
+
+          // Quad B
+          const qB0 = new THREE.Vector3().copy(basePt).addScaledVector(crossB, -hairWidthBase);
+          const qB1 = new THREE.Vector3().copy(basePt).addScaledVector(crossB, hairWidthBase);
+          const qB2 = new THREE.Vector3().copy(tipPt).addScaledVector(crossB, hairWidthTip);
+          const qB3 = new THREE.Vector3().copy(tipPt).addScaledVector(crossB, -hairWidthTip);
+
+          const quadPoints = [qA0, qA1, qA2, qA3, qB0, qB1, qB2, qB3];
+          quadPoints.forEach((v) => {
+            hairVertices.push(v.x, v.y, v.z);
+            hairNormals.push(radDir.x, radDir.y, radDir.z);
+          });
+
+          // Quad A faces
+          hairIndices.push(
+            hairVertOffset + 0, hairVertOffset + 1, hairVertOffset + 2,
+            hairVertOffset + 0, hairVertOffset + 2, hairVertOffset + 3
+          );
+          // Quad B faces
+          hairIndices.push(
+            hairVertOffset + 4, hairVertOffset + 5, hairVertOffset + 6,
+            hairVertOffset + 4, hairVertOffset + 6, hairVertOffset + 7
+          );
+
+          hairVertOffset += 8;
+
+          // On 25% of wet-facing hairs, add glistening capillary water bead at tip
+          if (dotToWater > 0.45 && (rIdx + hIdx) % 3 === 0) {
+            const bead = new THREE.Mesh(hairBeadGeo, hairBeadMat);
+            bead.position.copy(tipPt);
+            rootHairsGroup.add(bead);
+          }
         }
       }
+
+      const hairsGeo = new THREE.BufferGeometry();
+      hairsGeo.setAttribute('position', new THREE.Float32BufferAttribute(hairVertices, 3));
+      hairsGeo.setAttribute('normal', new THREE.Float32BufferAttribute(hairNormals, 3));
+      hairsGeo.setIndex(hairIndices);
+
+      const hairsMesh = new THREE.Mesh(hairsGeo, rootHairMat);
+      rootHairsGroup.add(hairsMesh);
       chamberRig.add(rootHairsGroup);
 
       // Statolith particles in Root Cap
@@ -817,10 +1049,20 @@ export default function RootTropismScene({
 
       updateRootGeometry(currentAngleRef.current, s);
 
-      // Ripple moisture animation
+      // Ripple moisture gradient animation
       const time = clock.getElapsedTime();
-      halo1.scale.setScalar(1 + Math.sin(time * 3.2) * 0.12);
-      halo2.scale.setScalar(1 + Math.cos(time * 2.8) * 0.08);
+      moistureHalo.scale.setScalar(1 + Math.sin(time * 2.4) * 0.06);
+
+      // Animate floating vapor particles
+      const vPos = vaporParticles.geometry.attributes.position as THREE.BufferAttribute;
+      for (let vi = 0; vi < vaporCount; vi++) {
+        const ph = vaporPhases[vi];
+        const rBase = vaporRadii[vi];
+        const r = rBase + Math.sin(time * 2.0 + ph) * 0.06;
+        const ang = ph + time * 0.22;
+        vPos.setXYZ(vi, Math.cos(ang) * r, Math.sin(ang) * r, 0.1 + Math.sin(time * 2.5 + ph) * 0.02);
+      }
+      vPos.needsUpdate = true;
 
       // Auxin particle flow speed
       if (auxinParticles && s.xrayStatoliths) {
@@ -1046,7 +1288,7 @@ export default function RootTropismScene({
 
       {/* BOTANICAL & RHIZOTRON ANATOMY CALLOUTS (Khi bật Chú Thích) */}
       {showAnatomy && (
-        <div className={`absolute bottom-16 left-4 border backdrop-blur-xl p-3.5 rounded-2xl text-xs shadow-2xl max-w-[360px] space-y-2 animate-in fade-in duration-200 z-20 ${
+        <div className={`absolute top-16 left-4 border backdrop-blur-xl p-3.5 rounded-2xl text-xs shadow-2xl max-w-[360px] space-y-2 animate-in fade-in duration-200 z-30 ${
           isDarkroom ? 'bg-slate-950/95 border-emerald-500/50 text-slate-200' : 'bg-white/95 border-emerald-400 text-slate-800'
         }`}>
           <div className="flex items-center justify-between border-b border-slate-700/50 pb-1.5">
