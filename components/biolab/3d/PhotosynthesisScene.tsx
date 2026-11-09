@@ -64,7 +64,7 @@ export default function PhotosynthesisScene({
   showAnatomyRef.current = showAnatomy;
 
   // Highlight CO2 / O2 Legend in HUD
-  const [showBubbleDetails, setShowBubbleDetails] = useState<boolean>(true);
+  const [showBubbleDetails, setShowBubbleDetails] = useState<boolean>(false);
 
   // Direct Interactive Lamp Control Modal / Popover
   const [isLampControlOpen, setIsLampControlOpen] = useState(false);
@@ -224,7 +224,7 @@ export default function PhotosynthesisScene({
     // Borosilicate Glass Material (Ultra-realistic glass shader)
     const glassMat = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
-      transmission: 0.96,
+      transmission: 0.94,
       opacity: 1,
       transparent: true,
       roughness: 0.03,
@@ -233,6 +233,20 @@ export default function PhotosynthesisScene({
       reflectivity: 0.6,
       clearcoat: 1.0,
       clearcoatRoughness: 0.05,
+      depthWrite: false,
+    });
+
+    // Apparatus Glass Material for interior funnel & test tube (trong suốt không che khuất bọt khí)
+    const apparatusGlassMat = new THREE.MeshPhysicalMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.35,
+      roughness: 0.04,
+      metalness: 0.08,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.04,
+      reflectivity: 0.85,
+      depthWrite: false,
     });
 
     // Glass Beaker Cylindrical Body (Bình thủy tinh trụ chia vạch)
@@ -241,6 +255,7 @@ export default function PhotosynthesisScene({
     const beakerGeo = new THREE.CylinderGeometry(beakerRadius, beakerRadius * 0.97, beakerHeight, 48, 1, true);
     const beaker = new THREE.Mesh(beakerGeo, glassMat);
     beaker.position.y = beakerHeight / 2 + 0.04;
+    beaker.renderOrder = 15;
     beaker.castShadow = true;
     beakerGroup.add(beaker);
 
@@ -248,6 +263,7 @@ export default function PhotosynthesisScene({
     const beakerBottomGeo = new THREE.CylinderGeometry(beakerRadius * 0.97, beakerRadius * 0.97, 0.08, 48);
     const beakerBottom = new THREE.Mesh(beakerBottomGeo, glassMat);
     beakerBottom.position.y = 0.04;
+    beakerBottom.renderOrder = 1;
     beakerBottom.receiveShadow = true;
     beakerGroup.add(beakerBottom);
 
@@ -256,6 +272,7 @@ export default function PhotosynthesisScene({
     beakerRimGeo.rotateX(Math.PI / 2);
     const beakerRim = new THREE.Mesh(beakerRimGeo, glassMat);
     beakerRim.position.y = beakerHeight + 0.04;
+    beakerRim.renderOrder = 15;
     beakerGroup.add(beakerRim);
 
     // Printed White Graduation Marks on Glass Beaker (200ml - 1000ml)
@@ -297,6 +314,7 @@ export default function PhotosynthesisScene({
     });
     const water = new THREE.Mesh(waterGeo, waterMat);
     water.position.y = waterHeight / 2 + 0.08;
+    water.renderOrder = 2;
     beakerGroup.add(water);
 
     // Upper Water Meniscus Ring
@@ -305,6 +323,7 @@ export default function PhotosynthesisScene({
     const meniscusMat = new THREE.MeshBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.55 });
     const meniscus = new THREE.Mesh(meniscusGeo, meniscusMat);
     meniscus.position.y = waterHeight + 0.08;
+    meniscus.renderOrder = 2;
     beakerGroup.add(meniscus);
 
     // NaHCO3 Effervescent Salt Tablet / Reagent Source on Beaker Floor (Viên NaHCO3 sủi bọt tạo CO2)
@@ -352,20 +371,24 @@ export default function PhotosynthesisScene({
     // Inverted Glass Funnel Cone (Mặt nón phễu lộn ngược úp trên cành rong)
     const funnelConeGeo = new THREE.ConeGeometry(0.92, 0.95, 48, 1, true);
     funnelConeGeo.rotateX(Math.PI);
-    const funnelCone = new THREE.Mesh(funnelConeGeo, glassMat);
+    const funnelCone = new THREE.Mesh(funnelConeGeo, apparatusGlassMat);
     funnelCone.position.y = 0.65;
+    funnelCone.renderOrder = 3;
     funnelGroup.add(funnelCone);
 
     // Funnel Stem (Cuống phễu thủy tinh thẳng đứng)
     const funnelStemGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.85, 32, 1, true);
-    const funnelStem = new THREE.Mesh(funnelStemGeo, glassMat);
+    const funnelStem = new THREE.Mesh(funnelStemGeo, apparatusGlassMat);
     funnelStem.position.y = 1.48;
+    funnelStem.renderOrder = 3;
     funnelGroup.add(funnelStem);
 
     // Inverted Graduated Test Tube (Ống nghiệm chia vạch lộn ngược chụp trên cuống phễu)
     const testTubeGeo = new THREE.CylinderGeometry(0.25, 0.25, 1.85, 36, 1, false);
-    const testTube = new THREE.Mesh(testTubeGeo, glassMat);
+    const testTube = new THREE.Mesh(testTubeGeo, apparatusGlassMat);
     testTube.position.y = 2.45;
+    testTube.renderOrder = 4;
+    funnelGroup.add(testTube);
     funnelGroup.add(testTube);
 
     // Inverted Test Tube Volume Marks (ml graduation lines)
@@ -553,54 +576,83 @@ export default function PhotosynthesisScene({
     }
 
     // 7. Glistening O2 Product Bubbles (Bọt khí Oxy sinh ra từ quang hợp - Đi qua phễu vào ống nghiệm)
-    const maxO2Bubbles = 100;
+    const maxO2Bubbles = 80;
     const o2BubblesGroup = new THREE.Group();
+    o2BubblesGroup.renderOrder = 12;
     scene.add(o2BubblesGroup);
 
     interface O2BubbleItem {
+      group: THREE.Group;
       mesh: THREE.Mesh;
       active: boolean;
       speed: number;
       baseX: number;
       baseZ: number;
       offset: number;
+      wobbleSpeed: number;
     }
     const o2Bubbles: O2BubbleItem[] = [];
 
-    const bubbleGeoSmall = new THREE.SphereGeometry(0.042, 16, 16);
-    const bubbleGeoMed = new THREE.SphereGeometry(0.058, 16, 16);
-    const bubbleGeoLarge = new THREE.SphereGeometry(0.076, 16, 16);
+    // Conspicuous sizes for O2 bubbles (viên ngọc khí tròn căng, nhìn cực rõ)
+    const o2GeoSmall = new THREE.SphereGeometry(0.068, 18, 18);
+    const o2GeoMed = new THREE.SphereGeometry(0.086, 18, 18);
+    const o2GeoLarge = new THREE.SphereGeometry(0.104, 18, 18);
 
+    // Glowing translucent cyan-tinted physical bubble material (vỏ bóng kính khúc xạ ánh sáng)
     const o2BubbleMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      emissive: 0x38bdf8,
-      emissiveIntensity: 0.6,
-      transmission: 0.95,
-      opacity: 0.95,
+      color: 0xcffafe,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.75,
+      roughness: 0.04,
+      metalness: 0.12,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.03,
+      reflectivity: 0.95,
       transparent: true,
-      roughness: 0.015,
-      ior: 1.1,
+      opacity: 0.88,
+      depthWrite: false,
+    });
+
+    // White specular highlight spot for authentic 3D spherical bubble sheen
+    const o2GlintMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
     });
 
     for (let i = 0; i < maxO2Bubbles; i++) {
-      const geo = i % 3 === 0 ? bubbleGeoLarge : i % 3 === 1 ? bubbleGeoMed : bubbleGeoSmall;
+      const bGroup = new THREE.Group();
+      bGroup.visible = false;
+      o2BubblesGroup.add(bGroup);
+
+      const r = i % 3 === 0 ? 0.104 : i % 3 === 1 ? 0.086 : 0.068;
+      const geo = i % 3 === 0 ? o2GeoLarge : i % 3 === 1 ? o2GeoMed : o2GeoSmall;
       const bMesh = new THREE.Mesh(geo, o2BubbleMat);
-      bMesh.visible = false;
-      o2BubblesGroup.add(bMesh);
+      bGroup.add(bMesh);
+
+      // Specular highlight spot at top-left-front of bubble
+      const glintGeo = new THREE.SphereGeometry(r * 0.28, 8, 8);
+      const glint = new THREE.Mesh(glintGeo, o2GlintMat);
+      glint.position.set(r * 0.38, r * 0.45, r * 0.38);
+      bGroup.add(glint);
 
       o2Bubbles.push({
+        group: bGroup,
         mesh: bMesh,
         active: false,
-        speed: 0.88 + Math.random() * 0.42,
-        baseX: (Math.random() - 0.5) * 0.035,
-        baseZ: (Math.random() - 0.5) * 0.035,
+        speed: 0.52 + Math.random() * 0.25,
+        baseX: (Math.random() - 0.5) * 0.025,
+        baseZ: (Math.random() - 0.5) * 0.025,
         offset: Math.random() * Math.PI * 2,
+        wobbleSpeed: 5 + Math.random() * 4,
       });
     }
 
     // 8. Effervescent Dissolved CO2 Micro-Bubbles (Bọt khí CO2 sủi tăm li ti từ NaHCO3 lan tỏa trong nước)
     const maxCo2Bubbles = 120;
     const co2BubblesGroup = new THREE.Group();
+    co2BubblesGroup.renderOrder = 8;
     scene.add(co2BubblesGroup);
 
     interface Co2BubbleItem {
@@ -614,23 +666,24 @@ export default function PhotosynthesisScene({
     }
     const co2Bubbles: Co2BubbleItem[] = [];
 
-    const co2Geo1 = new THREE.SphereGeometry(0.022, 12, 12);
-    const co2Geo2 = new THREE.SphereGeometry(0.032, 12, 12);
-    const co2Geo3 = new THREE.SphereGeometry(0.042, 12, 12);
+    const co2Geo1 = new THREE.SphereGeometry(0.034, 12, 12);
+    const co2Geo2 = new THREE.SphereGeometry(0.046, 12, 12);
+    const co2Geo3 = new THREE.SphereGeometry(0.058, 12, 12);
 
     const co2BubbleMat = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
-      emissive: 0xe0f2fe,
-      emissiveIntensity: 0.4,
-      transmission: 0.92,
-      opacity: 0.88,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 0.48,
+      roughness: 0.06,
+      metalness: 0.08,
+      clearcoat: 0.9,
       transparent: true,
-      roughness: 0.01,
-      ior: 1.12,
+      opacity: 0.85,
+      depthWrite: false,
     });
 
     for (let i = 0; i < maxCo2Bubbles; i++) {
-      const geo = i % 3 === 0 ? co2Geo1 : i % 3 === 1 ? co2Geo2 : co2Geo3;
+      const geo = i % 3 === 0 ? co2Geo3 : i % 3 === 1 ? co2Geo2 : co2Geo1;
       const cbMesh = new THREE.Mesh(geo, co2BubbleMat);
       cbMesh.visible = false;
       co2BubblesGroup.add(cbMesh);
@@ -638,11 +691,11 @@ export default function PhotosynthesisScene({
       co2Bubbles.push({
         mesh: cbMesh,
         active: false,
-        speed: 0.55 + Math.random() * 0.45,
+        speed: 0.42 + Math.random() * 0.32,
         baseX: 0,
         baseZ: 0,
         swirlPhase: Math.random() * Math.PI * 2,
-        swirlRadius: 0.02 + Math.random() * 0.04,
+        swirlRadius: 0.02 + Math.random() * 0.045,
       });
     }
 
@@ -960,7 +1013,9 @@ export default function PhotosynthesisScene({
 
       // 1. Emit O2 bubbles from cut stem port
       if (playing && bubblesPerMinute > 0.5) {
-        const spawnInterval = Math.max(0.04, 1.0 / ((bubblesPerMinute / 60) * s.timeMultiplier));
+        // Effective spawn frequency scales with photosynthesis rate and time multiplier
+        const spawnFrequency = (bubblesPerMinute / 60) * Math.min(2.5, 0.8 + s.timeMultiplier * 0.25);
+        const spawnInterval = Math.max(0.08, 1.0 / Math.max(0.1, spawnFrequency));
         o2SpawnCounter += delta;
 
         if (o2SpawnCounter >= spawnInterval) {
@@ -968,30 +1023,33 @@ export default function PhotosynthesisScene({
           const inactive = o2Bubbles.find((b) => !b.active);
           if (inactive) {
             inactive.active = true;
-            inactive.mesh.visible = true;
-            inactive.mesh.position.set(inactive.baseX, 1.05, inactive.baseZ);
+            inactive.group.visible = true;
+            inactive.baseX = (Math.random() - 0.5) * 0.025;
+            inactive.baseZ = (Math.random() - 0.5) * 0.025;
+            inactive.group.position.set(inactive.baseX, 1.13, inactive.baseZ);
+            inactive.group.scale.setScalar(0.75 + Math.random() * 0.45);
           }
         }
       }
 
       const o2GasTopLimit = Math.max(1.5, tubeMeniscus.position.y);
+      const visualSpeedMultiplier = playing ? Math.min(2.0, 0.85 + s.timeMultiplier * 0.2) : 0.1;
 
       for (const b of o2Bubbles) {
         if (!b.active) continue;
-        b.mesh.position.y += b.speed * delta * (playing ? s.timeMultiplier : 0.2);
-        b.mesh.position.x = b.baseX + Math.sin(time * 8 + b.offset) * 0.025;
-        b.mesh.position.z = b.baseZ + Math.cos(time * 8 + b.offset) * 0.025;
+        b.group.position.y += b.speed * delta * visualSpeedMultiplier;
+        b.group.position.x = b.baseX + Math.sin(time * b.wobbleSpeed + b.offset) * 0.016;
+        b.group.position.z = b.baseZ + Math.cos(time * b.wobbleSpeed + b.offset) * 0.016;
 
-        if (b.mesh.position.y >= o2GasTopLimit) {
+        if (b.group.position.y >= o2GasTopLimit) {
           b.active = false;
-          b.mesh.visible = false;
+          b.group.visible = false;
         }
       }
 
       // 2. Emit Effervescent Dissolved CO2 micro-bubbles from NaHCO3 tablet & beaker floor
       if (playing && s.co2Concentration > 0.05) {
-        // Spawn frequency directly proportional to CO2 concentration!
-        const co2Interval = Math.max(0.02, 0.35 / (s.co2Concentration * s.timeMultiplier));
+        const co2Interval = Math.max(0.035, 0.45 / (s.co2Concentration * Math.min(3.0, 0.8 + s.timeMultiplier * 0.2)));
         co2SpawnCounter += delta;
 
         if (co2SpawnCounter >= co2Interval) {
@@ -1000,18 +1058,19 @@ export default function PhotosynthesisScene({
           if (inactiveCo2) {
             inactiveCo2.active = true;
             inactiveCo2.mesh.visible = true;
-            // 75% spawn right at the NaHCO3 tablet, 25% disperse from beaker base
-            if (Math.random() < 0.75) {
-              inactiveCo2.baseX = tabletGroup.position.x + (Math.random() - 0.5) * 0.26;
-              inactiveCo2.baseZ = tabletGroup.position.z + (Math.random() - 0.5) * 0.26;
-              inactiveCo2.mesh.position.set(inactiveCo2.baseX, 0.15, inactiveCo2.baseZ);
+            // 80% spawn from NaHCO3 tablet, 20% disperse from beaker base
+            if (Math.random() < 0.8) {
+              inactiveCo2.baseX = tabletGroup.position.x + (Math.random() - 0.5) * 0.28;
+              inactiveCo2.baseZ = tabletGroup.position.z + (Math.random() - 0.5) * 0.28;
+              inactiveCo2.mesh.position.set(inactiveCo2.baseX, 0.14, inactiveCo2.baseZ);
             } else {
-              const r = 0.3 + Math.random() * 0.75;
+              const r = 0.35 + Math.random() * 0.7;
               const th = Math.random() * Math.PI * 2;
               inactiveCo2.baseX = Math.sin(th) * r;
               inactiveCo2.baseZ = Math.cos(th) * r;
               inactiveCo2.mesh.position.set(inactiveCo2.baseX, 0.12, inactiveCo2.baseZ);
             }
+            inactiveCo2.mesh.scale.setScalar(0.75 + Math.random() * 0.5);
           }
         }
       }
@@ -1019,9 +1078,9 @@ export default function PhotosynthesisScene({
       const waterTopLimit = 2.45;
       for (const cb of co2Bubbles) {
         if (!cb.active) continue;
-        cb.mesh.position.y += cb.speed * delta * (playing ? s.timeMultiplier : 0.25);
-        cb.mesh.position.x = cb.baseX + Math.sin(time * 6 + cb.swirlPhase) * cb.swirlRadius;
-        cb.mesh.position.z = cb.baseZ + Math.cos(time * 6 + cb.swirlPhase) * cb.swirlRadius;
+        cb.mesh.position.y += cb.speed * delta * visualSpeedMultiplier;
+        cb.mesh.position.x = cb.baseX + Math.sin(time * 5 + cb.swirlPhase) * cb.swirlRadius;
+        cb.mesh.position.z = cb.baseZ + Math.cos(time * 5 + cb.swirlPhase) * cb.swirlRadius;
 
         if (cb.mesh.position.y >= waterTopLimit) {
           cb.active = false;
@@ -1348,59 +1407,95 @@ export default function PhotosynthesisScene({
         </div>
       )}
 
-      {/* Prominent Live Gas Bubble Stream Indicator (Phân biệt rõ ràng O2 và CO2) */}
-      <div className={`absolute bottom-16 left-4 border backdrop-blur-md p-3.5 rounded-2xl text-xs shadow-xl space-y-2.5 max-w-[320px] z-10 transition-colors ${
+      {/* Sleek Compact Live Gas Bubble Stream Indicator (Nhỏ gọn & Con số siêu rõ nét) */}
+      <div className={`absolute bottom-4 left-4 border backdrop-blur-xl p-2.5 rounded-2xl shadow-xl space-y-1.5 w-auto min-w-[200px] max-w-[240px] z-20 transition-all ${
         isDarkroom
-          ? 'bg-slate-900/90 border-cyan-500/40 text-slate-200'
-          : 'bg-white/95 border-cyan-300 text-slate-800'
+          ? 'bg-slate-950/92 border-cyan-500/40 text-slate-100 shadow-cyan-950/40'
+          : 'bg-white/95 border-sky-300 text-slate-800 shadow-sky-900/10'
       }`}>
         {/* O2 stream indicator */}
-        <div className="flex items-center gap-3">
-          <div className="relative w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center border border-cyan-400/40 text-cyan-400 shrink-0">
-            <span className="text-xl animate-bounce">🫧</span>
-            {state.bubblesPerMinute > 0 && (
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full animate-ping" />
-            )}
+        <div>
+          <div className="flex items-center justify-between pb-1">
+            <span className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
+              isDarkroom ? 'text-cyan-400' : 'text-sky-800'
+            }`}>
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              Bọt khí Oxy (O₂)
+              <span className="text-[9px] font-normal opacity-75">(sản phẩm)</span>
+            </span>
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
+              state.bubblesPerMinute > 30
+                ? isDarkroom ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                : state.bubblesPerMinute > 10
+                ? isDarkroom ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-500/30' : 'bg-sky-100 text-sky-800 border border-sky-300'
+                : isDarkroom ? 'bg-slate-800 text-slate-400 border border-slate-700' : 'bg-slate-100 text-slate-600 border border-slate-300'
+            }`}>
+              {state.bubblesPerMinute > 30 ? 'Rất mạnh' : state.bubblesPerMinute > 10 ? 'Ổn định' : 'Yếu/Ngừng'}
+            </span>
           </div>
-          <div>
-            <div className="text-[10px] text-cyan-400 font-extrabold uppercase tracking-wider flex items-center gap-1">
-              <span>🔵 Bọt khí Oxy (O₂)</span>
-              <span className="text-[9px] font-normal text-slate-400">(Sản phẩm)</span>
+
+          <div className={`flex items-baseline justify-between px-2.5 py-1.5 rounded-xl border ${
+            isDarkroom
+              ? 'bg-slate-900/90 border-cyan-500/30 text-cyan-300'
+              : 'bg-sky-50 border-sky-200 text-sky-950'
+          }`}>
+            <div className="flex items-baseline gap-1.5">
+              <span className={`text-2xl font-black font-mono tracking-tight ${
+                isDarkroom ? 'text-cyan-300 drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]' : 'text-sky-950 font-black'
+              }`}>
+                {state.bubblesPerMinute}
+              </span>
+              <span className={`text-xs font-bold ${
+                isDarkroom ? 'text-cyan-400' : 'text-sky-700'
+              }`}>
+                bọt / phút
+              </span>
             </div>
-            <div className="text-lg font-black text-white flex items-baseline gap-1">
-              {state.bubblesPerMinute}
-              <span className="text-xs font-normal text-slate-400">bọt/phút</span>
-            </div>
-            <div className="text-[10px] text-emerald-400 font-medium">
-              {state.bubblesPerMinute > 30 ? 'Quang hợp rất mạnh' : state.bubblesPerMinute > 10 ? 'Quang hợp ổn định' : 'Quang hợp yếu / ngừng'}
-            </div>
+            <span className="text-base animate-bounce">🫧</span>
           </div>
         </div>
 
         {/* CO2 stream indicator & quick add button */}
-        <div className="border-t border-slate-700/50 pt-2 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-slate-300 shadow-sm shadow-white" />
-            <div>
-              <div className="text-[10px] text-slate-300 font-bold">⚪ Bọt khí Cacbonic (CO₂)</div>
-              <div className="text-[10px] text-slate-400">Nồng độ hòa tan: <strong className="text-cyan-400">{state.co2Concentration}%</strong></div>
-            </div>
+        <div className={`border-t pt-1.5 flex items-center justify-between gap-1 text-[10px] ${
+          isDarkroom ? 'border-slate-800 text-slate-300' : 'border-slate-200 text-slate-700'
+        }`}>
+          <div className="flex items-center gap-1 font-medium">
+            <span>⚪ CO₂:</span>
+            <strong className={`font-mono font-bold ${isDarkroom ? 'text-cyan-300' : 'text-cyan-800'}`}>
+              {state.co2Concentration}%
+            </strong>
           </div>
           {onUpdateState && (
             <button
-              onClick={() => onUpdateState((prev) => ({ ...prev, co2Concentration: prev.co2Concentration >= 3.5 ? 0.5 : Math.round((prev.co2Concentration + 0.5) * 10) / 10 }))}
-              className="px-2 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-lg text-[10px] font-bold transition cursor-pointer"
-              title="Thêm muối NaHCO3 để tăng CO2 hòa tan"
+              onClick={() =>
+                onUpdateState((prev) => ({
+                  ...prev,
+                  co2Concentration:
+                    prev.co2Concentration >= 3.5
+                      ? 0.5
+                      : Math.round((prev.co2Concentration + 0.5) * 10) / 10,
+                }))
+              }
+              className={`px-2 py-0.5 rounded-lg border font-bold transition cursor-pointer text-[10px] ${
+                isDarkroom
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 hover:bg-cyan-500/30'
+                  : 'bg-sky-100 hover:bg-sky-200 text-sky-800 border-sky-300'
+              }`}
+              title="Tăng nồng độ CO2 hòa tan từ NaHCO3"
             >
               + Bơm CO₂
             </button>
           )}
         </div>
 
-        {/* Educational note on gas origin */}
+        {/* Educational note on gas origin (collapsible) */}
         {showBubbleDetails && (
-          <div className="bg-slate-950/60 p-2 rounded-xl text-[10px] text-slate-300 leading-relaxed border border-slate-800">
-            💡 <strong>Phân biệt:</strong> Bọt khí <strong>CO₂ li ti</strong> sủi từ đáy cốc cung cấp cho lá; cây hấp thụ để quang hợp tạo ra chuỗi bọt khí <strong>O₂ to hơn</strong> thoát ra ở vết cắt cuống rong!
+          <div className={`p-2 rounded-xl text-[10px] leading-relaxed border animate-in fade-in duration-200 ${
+            isDarkroom
+              ? 'bg-slate-900/95 border-cyan-500/30 text-slate-300'
+              : 'bg-slate-50 border-sky-200 text-slate-600'
+          }`}>
+            💡 <strong>Phân biệt:</strong> Bọt khí <strong>CO₂ li ti</strong> sủi từ đáy cốc; cây hấp thụ quang hợp tạo chuỗi bọt khí <strong>O₂ to</strong> thoát ở cuống rong nổi lên ống nghiệm!
           </div>
         )}
       </div>
@@ -1436,7 +1531,7 @@ export default function PhotosynthesisScene({
 
       {/* BOTANICAL & APPARATUS ANATOMY CALLOUTS (Khi bật Chú Thích) */}
       {showAnatomy && (
-        <div className={`absolute bottom-16 left-4 border backdrop-blur-xl p-3.5 rounded-2xl text-xs shadow-2xl max-w-[360px] space-y-2 animate-in fade-in duration-200 z-20 ${
+        <div className={`absolute top-16 left-4 border backdrop-blur-xl p-3.5 rounded-2xl text-xs shadow-2xl max-w-[360px] space-y-2 animate-in fade-in duration-200 z-30 ${
           isDarkroom ? 'bg-slate-950/95 border-cyan-500/50 text-slate-200' : 'bg-white/95 border-cyan-400 text-slate-800'
         }`}>
           <div className="flex items-center justify-between border-b border-slate-700/50 pb-1.5">
