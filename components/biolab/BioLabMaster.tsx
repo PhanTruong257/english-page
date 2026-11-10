@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import LabHeader from './LabHeader';
 import LabSidebar from './LabSidebar';
 import PhototropismScene from './3d/PhototropismScene';
@@ -18,19 +18,6 @@ export default function BioLabMaster() {
   const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
   const [sidebarTab, setSidebarTab] = useState<'controls' | 'inquiry' | 'analytics' | 'mechanism' | 'missions'>('controls');
-
-  // Mounted labs: once a lab is visited it stays mounted (avoids remount cost)
-  // but animation loops pause when isActive=false, so idle scenes cost almost nothing.
-  const [mountedLabs, setMountedLabs] = useState<Record<LabId, boolean>>({
-    phototropism: true,
-    photosynthesis: false,
-    hydrotropism: false,
-  });
-
-  useEffect(() => {
-    // Only mount a scene the first time the user visits it
-    setMountedLabs((prev) => (prev[activeLab] ? prev : { ...prev, [activeLab]: true }));
-  }, [activeLab]);
 
   // LAB 1 STATE
   const [photoState, setPhotoState] = useState<PhototropismState>({
@@ -141,50 +128,55 @@ export default function BioLabMaster() {
       <main className="flex-1 max-w-[1720px] w-full mx-auto p-3 sm:p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         {/* Left Column: 3D Scene Viewport (7 cols on lg, 8 on xl) */}
         <section className="lg:col-span-7 xl:col-span-8 flex flex-col min-h-[500px] lg:min-h-[720px] relative">
-          <div className={`w-full h-full min-h-[500px] lg:min-h-[720px] ${activeLab === 'phototropism' ? 'block' : 'hidden'}`}>
-            {mountedLabs.phototropism && (
+          {activeLab === 'phototropism' && (
+            <div className="w-full h-full min-h-[500px] lg:min-h-[720px]">
               <PhototropismScene
                 state={photoState}
                 onUpdateState={setPhotoState}
                 onAngleUpdate={(ang) => setPhotoCurrentAngle(ang)}
                 onOpenInquiry={() => setSidebarTab('inquiry')}
                 isPlaying={isPlaying}
-                isActive={activeLab === 'phototropism'}
+                isActive
               />
-            )}
-          </div>
+            </div>
+          )}
 
-          <div className={`w-full h-full min-h-[500px] lg:min-h-[720px] ${activeLab === 'photosynthesis' ? 'block' : 'hidden'}`}>
-            {mountedLabs.photosynthesis && (
+          {activeLab === 'photosynthesis' && (
+            <div className="w-full h-full min-h-[500px] lg:min-h-[720px]">
               <PhotosynthesisScene
                 state={synthState}
                 onUpdateState={setSynthState}
                 onUpdateBubbleRate={(bpm, vol) => {
-                  setSynthState((prev) => ({
-                    ...prev,
-                    bubblesPerMinute: bpm,
-                    collectedO2Volume: vol,
-                  }));
+                  setSynthState((prev) => {
+                    if (prev.bubblesPerMinute === bpm && prev.collectedO2Volume === vol) {
+                      return prev;
+                    }
+                    return {
+                      ...prev,
+                      bubblesPerMinute: bpm,
+                      collectedO2Volume: vol,
+                    };
+                  });
                 }}
                 onOpenInquiry={() => setSidebarTab('inquiry')}
                 isPlaying={isPlaying}
-                isActive={activeLab === 'photosynthesis'}
+                isActive
               />
-            )}
-          </div>
+            </div>
+          )}
 
-          <div className={`w-full h-full min-h-[500px] lg:min-h-[720px] ${activeLab === 'hydrotropism' ? 'block' : 'hidden'}`}>
-            {mountedLabs.hydrotropism && (
+          {activeLab === 'hydrotropism' && (
+            <div className="w-full h-full min-h-[500px] lg:min-h-[720px]">
               <RootTropismScene
                 state={hydroState}
                 onUpdateState={setHydroState}
                 onUpdateRootAngle={(ang) => setHydroCurrentAngle(ang)}
                 onOpenInquiry={() => setSidebarTab('inquiry')}
                 isPlaying={isPlaying}
-                isActive={activeLab === 'hydrotropism'}
+                isActive
               />
-            )}
-          </div>
+            </div>
+          )}
         </section>
 
         {/* Right Column: Scientific Control & Analysis Sidebar (5 cols on lg, 4 on xl) */}

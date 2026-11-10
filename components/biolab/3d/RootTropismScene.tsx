@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { HydrotropismState } from '../types';
-import { setupLabEnvironment } from './LabEnvironment';
+import { setupLabEnvironment, disposeSceneResources } from './LabEnvironment';
 
 interface Props {
   state: HydrotropismState;
@@ -352,15 +352,14 @@ export default function RootTropismScene({
     // Front Ultra-Clear Borosilicate Viewing Pane (Kính chịu lực siêu trong suốt)
     const glassPaneGeo = new THREE.BoxGeometry(3.4, 3.2, 0.035);
     const glassPaneMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      transmission: 0.96,
-      opacity: 1,
+      color: 0xe0f2fe,
+      opacity: 0.16,
       transparent: true,
       roughness: 0.03,
-      ior: 1.52,
-      thickness: 0.25,
       clearcoat: 1.0,
       clearcoatRoughness: 0.04,
+      reflectivity: 0.9,
+      depthWrite: false,
     });
     const glassPane = new THREE.Mesh(glassPaneGeo, glassPaneMat);
     glassPane.position.set(0, 0, 0.18);
@@ -512,13 +511,12 @@ export default function RootTropismScene({
     // Glistening Liquid Water Droplets (Các giọt nước đọng long lanh trên bề mặt miếng mút)
     const waterDropletMat = new THREE.MeshPhysicalMaterial({
       color: 0xe0f2fe,
-      transmission: 0.92,
-      opacity: 0.95,
+      opacity: 0.78,
       transparent: true,
       roughness: 0.02,
-      ior: 1.333, // True index of refraction of water
       clearcoat: 1.0,
       clearcoatRoughness: 0.03,
+      reflectivity: 0.95,
       depthWrite: false,
     });
 
@@ -616,11 +614,7 @@ export default function RootTropismScene({
 
     chamberRig.add(spongeGroup);
 
-    // 8. Dynamic Organic Taproot Geometry with Root Cap & 3D Conspicuous Root Hairs
-    let rootMesh: THREE.Mesh | null = null;
-    let rootCoreMesh: THREE.Mesh | null = null;
-    let rootCapMesh: THREE.Mesh | null = null;
-    let rootHairsGroup: THREE.Group | null = null;
+    // 8. Dynamic Organic Taproot Geometry with Root Cap & 3D Conspicuous Root Hairs (zero-alloc in-place reuse)
     let statolithPoints: THREE.Points | null = null;
     let auxinParticles: THREE.Points | null = null;
 
@@ -682,70 +676,12 @@ export default function RootTropismScene({
     const hairBeadGeo = new THREE.SphereGeometry(0.012, 8, 8);
     const hairBeadMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 });
 
-    // Botanical Tapered Taproot Geometry (Rễ cọc mọng nước với các vùng giải phẫu)
-    function updateRootGeometry(angleRad: number, s: HydrotropismState) {
-      if (rootMesh) {
-        rootMesh.geometry.dispose();
-        chamberRig.remove(rootMesh);
-      }
-      if (rootCoreMesh) {
-        rootCoreMesh.geometry.dispose();
-        chamberRig.remove(rootCoreMesh);
-      }
-      if (rootCapMesh) {
-        rootCapMesh.geometry.dispose();
-        chamberRig.remove(rootCapMesh);
-      }
-      if (rootHairsGroup) {
-        rootHairsGroup.traverse((obj) => {
-          if ((obj as THREE.Mesh).geometry && (obj as THREE.Mesh).geometry !== hairBeadGeo) {
-            (obj as THREE.Mesh).geometry.dispose();
-          }
-        });
-        chamberRig.remove(rootHairsGroup);
-      }
-
-      const length = 2.25;
-      const tipX = Math.sin(angleRad) * (length * 0.85);
-      const tipY = 1.18 - Math.cos(angleRad) * length;
-
-      const p0 = new THREE.Vector3(0, 1.18, 0.08); // Root collar in seed
-      const p1 = new THREE.Vector3(0, 0.52, 0.08); // Zone of cell division
-      const p2 = new THREE.Vector3(tipX * 0.65, 1.18 - length * 0.65, 0.08); // Elongation zone bending
-      const p3 = new THREE.Vector3(tipX, tipY, 0.08); // Apex tip
-
-      const rootCurve = new THREE.CubicBezierCurve3(p0, p1, p2, p3);
-
-      const segments = 42;
-      const radialSegments = 16;
-      const frames = rootCurve.computeFrenetFrames(segments, false);
-      const vertices: number[] = [];
+    // Pre-allocated Root, Core, Cap, Hairs & Capillary Beads (zero per-frame allocations)
+    function createTubeBuffers(segments: number, radialSegments: number) {
+      const vertCount = (segments + 1) * (radialSegments + 1);
+      const posArr = new Float32Array(vertCount * 3);
+      const normArr = new Float32Array(vertCount * 3);
       const indices: number[] = [];
-      const normals: number[] = [];
-
-      for (let i = 0; i <= segments; i++) {
-        const u = i / segments;
-        const pt = rootCurve.getPointAt(u);
-        const N = frames.normals[i];
-        const B = frames.binormals[i];
-
-        // Botanical Taper: Base collar (r = 0.098) down to elongation tip (r = 0.042)
-        const radius = 0.098 - (u * 0.056);
-
-        for (let j = 0; j <= radialSegments; j++) {
-          const v = j / radialSegments;
-          const theta = v * Math.PI * 2;
-          const normal = new THREE.Vector3()
-            .copy(N).multiplyScalar(Math.cos(theta))
-            .addScaledVector(B, Math.sin(theta))
-            .normalize();
-
-          const vertex = new THREE.Vector3().copy(pt).addScaledVector(normal, radius);
-          vertices.push(vertex.x, vertex.y, vertex.z);
-          normals.push(normal.x, normal.y, normal.z);
-        }
-      }
-
       for (let i = 0; i < segments; i++) {
         for (let j = 0; j < radialSegments; j++) {
           const a = i * (radialSegments + 1) + j;
@@ -756,190 +692,316 @@ export default function RootTropismScene({
           indices.push(b, c, d);
         }
       }
+      const geo = new THREE.BufferGeometry();
+      const posAttr = new THREE.BufferAttribute(posArr, 3).setUsage(THREE.DynamicDrawUsage);
+      const normAttr = new THREE.BufferAttribute(normArr, 3).setUsage(THREE.DynamicDrawUsage);
+      geo.setAttribute('position', posAttr);
+      geo.setAttribute('normal', normAttr);
+      geo.setIndex(indices);
+      return { geo, posArr, normArr, posAttr, normAttr };
+    }
 
-      const rootGeo = new THREE.BufferGeometry();
-      rootGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-      rootGeo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-      rootGeo.setIndex(indices);
+    const rScratchPt = new THREE.Vector3();
+    const rScratchNorm = new THREE.Vector3();
+    const rScratchVert = new THREE.Vector3();
 
-      // Translucent succulent jade-ivory root material (Mô thực vật mọng nước có lớp bóng ẩm)
-      const rootMat = new THREE.MeshPhysicalMaterial({
-        color: s.xrayStatoliths ? 0x06b6d4 : 0xfef9c3,
-        emissive: s.xrayStatoliths ? 0x0891b2 : 0xfef08a,
-        emissiveIntensity: s.xrayStatoliths ? 0.6 : 0.22,
-        roughness: 0.28,
-        metalness: 0.04,
-        clearcoat: 0.7,
-        clearcoatRoughness: 0.12,
-        transparent: s.xrayStatoliths,
-        opacity: s.xrayStatoliths ? 0.45 : 1.0,
-      });
-
-      rootMesh = new THREE.Mesh(rootGeo, rootMat);
-      rootMesh.castShadow = true;
-      chamberRig.add(rootMesh);
-
-      // Inner Vascular Cylinder Stele (Lõi trung trụ xylem & phloem dẫn nước)
-      const coreCurve = new THREE.CubicBezierCurve3(p0, p1, p2, p2.clone().addScaledVector(p3.clone().sub(p2), 0.7));
-      const coreGeo = new THREE.TubeGeometry(coreCurve, 28, 0.022, 10, false);
-      const coreMat = new THREE.MeshStandardMaterial({
-        color: 0x86efac,
-        emissive: 0x22c55e,
-        emissiveIntensity: 0.35,
-        transparent: true,
-        opacity: 0.5,
-      });
-      rootCoreMesh = new THREE.Mesh(coreGeo, coreMat);
-      chamberRig.add(rootCoreMesh);
-
-      // Amber Meristematic Root Cap (Calyptra - Chóp rễ bao bọc mô phân sinh đỉnh)
-      const capGeo = new THREE.ConeGeometry(0.048, 0.24, 18);
-      capGeo.translate(0, -0.11, 0);
-      const capMat = new THREE.MeshStandardMaterial({
-        color: s.xrayStatoliths ? 0x38bdf8 : 0xf59e0b,
-        roughness: 0.3,
-      });
-      rootCapMesh = new THREE.Mesh(capGeo, capMat);
-      rootCapMesh.position.copy(p3);
-
-      const tangent = rootCurve.getTangent(1);
-      const axis = new THREE.Vector3(0, -1, 0);
-      rootCapMesh.quaternion.setFromUnitVectors(axis, tangent);
-      chamberRig.add(rootCapMesh);
-
-      // 3D CONSPICUOUS ROOT HAIRS (Miền lông hút rễ 3D tơ trắng muốt cực kỳ rõ nét)
-      rootHairsGroup = new THREE.Group();
-      rootHairsGroup.renderOrder = 10;
-
-      const hairVertices: number[] = [];
-      const hairIndices: number[] = [];
-      const hairNormals: number[] = [];
-      let hairVertOffset = 0;
-
-      const spongePos = spongeGroup.position;
-      const numRings = 24;
-      const hairsPerRing = 6;
-
-      for (let rIdx = 0; rIdx < numRings; rIdx++) {
-        const u = 0.22 + (rIdx / (numRings - 1)) * 0.48; // Maturation zone
-        const pt = rootCurve.getPoint(u);
-        const radius = 0.098 - (u * 0.056);
-
-        // Frenet frames for cross-section
-        const tangentAtU = rootCurve.getTangent(u);
-        const upVec = new THREE.Vector3(0, 0, 1);
-        const normalVec = new THREE.Vector3().crossVectors(tangentAtU, upVec).normalize();
-        const binormalVec = new THREE.Vector3().crossVectors(tangentAtU, normalVec).normalize();
-
-        for (let hIdx = 0; hIdx < hairsPerRing; hIdx++) {
-          const theta = (hIdx / hairsPerRing) * Math.PI * 2 + (rIdx * 0.35);
-          const radDir = new THREE.Vector3()
-            .copy(normalVec).multiplyScalar(Math.cos(theta))
-            .addScaledVector(binormalVec, Math.sin(theta))
+    function updateTubeBuffers(
+      curve: THREE.CubicBezierCurve3,
+      segments: number,
+      radialSegments: number,
+      radiusAtU: (u: number) => number,
+      posArr: Float32Array,
+      normArr: Float32Array,
+      posAttr: THREE.BufferAttribute,
+      normAttr: THREE.BufferAttribute,
+      geo: THREE.BufferGeometry
+    ) {
+      const frames = curve.computeFrenetFrames(segments, false);
+      let idx = 0;
+      for (let i = 0; i <= segments; i++) {
+        const u = i / segments;
+        curve.getPointAt(u, rScratchPt);
+        const N = frames.normals[i];
+        const B = frames.binormals[i];
+        const radius = radiusAtU(u);
+        for (let j = 0; j <= radialSegments; j++) {
+          const theta = (j / radialSegments) * Math.PI * 2;
+          rScratchNorm
+            .copy(N)
+            .multiplyScalar(Math.cos(theta))
+            .addScaledVector(B, Math.sin(theta))
             .normalize();
+          rScratchVert.copy(rScratchPt).addScaledVector(rScratchNorm, radius);
 
-          const basePt = new THREE.Vector3().copy(pt).addScaledVector(radDir, radius * 0.95);
+          posArr[idx] = rScratchVert.x;
+          posArr[idx + 1] = rScratchVert.y;
+          posArr[idx + 2] = rScratchVert.z;
+          normArr[idx] = rScratchNorm.x;
+          normArr[idx + 1] = rScratchNorm.y;
+          normArr[idx + 2] = rScratchNorm.z;
+          idx += 3;
+        }
+      }
+      posAttr.needsUpdate = true;
+      normAttr.needsUpdate = true;
+      geo.computeBoundingSphere();
+    }
 
-          // Hydrotropic Orientation: Hair grows significantly longer and curls towards water source
-          const toWater = new THREE.Vector3(spongePos.x - basePt.x, spongePos.y - basePt.y, 0);
-          const toWaterDir = toWater.clone().normalize();
-          const dotToWater = radDir.dot(toWaterDir);
+    const rootSegments = 42;
+    const rootRadialSegments = 16;
+    const rootBuf = createTubeBuffers(rootSegments, rootRadialSegments);
+    const rootMat = new THREE.MeshPhysicalMaterial({
+      color: 0xfef9c3,
+      emissive: 0xfef08a,
+      emissiveIntensity: 0.22,
+      roughness: 0.28,
+      metalness: 0.04,
+      clearcoat: 0.7,
+      clearcoatRoughness: 0.12,
+      transparent: false,
+      opacity: 1.0,
+    });
+    const rootMesh = new THREE.Mesh(rootBuf.geo, rootMat);
+    rootMesh.castShadow = true;
+    chamberRig.add(rootMesh);
 
-          let hairLength: number;
-          let tipDir: THREE.Vector3;
+    const coreSegments = 28;
+    const coreRadialSegments = 10;
+    const coreBuf = createTubeBuffers(coreSegments, coreRadialSegments);
+    const coreMat = new THREE.MeshStandardMaterial({
+      color: 0x86efac,
+      emissive: 0x22c55e,
+      emissiveIntensity: 0.35,
+      transparent: true,
+      opacity: 0.5,
+    });
+    const rootCoreMesh = new THREE.Mesh(coreBuf.geo, coreMat);
+    chamberRig.add(rootCoreMesh);
 
-          if (dotToWater > 0) {
-            // Hair on wet side facing sponge: significantly longer, reaches actively toward sponge
-            hairLength = 0.18 + dotToWater * 0.16 + (Math.sin(rIdx * 7 + hIdx) * 0.03);
-            tipDir = new THREE.Vector3()
-              .copy(radDir).multiplyScalar(0.4)
-              .addScaledVector(toWaterDir, 0.6)
+    const capGeo = new THREE.ConeGeometry(0.048, 0.24, 18);
+    capGeo.translate(0, -0.11, 0);
+    const capMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.3 });
+    const rootCapMesh = new THREE.Mesh(capGeo, capMat);
+    chamberRig.add(rootCapMesh);
+
+    // Pre-allocated 3D Root Hairs & Instanced Capillary Beads
+    const numRings = 24;
+    const hairsPerRing = 6;
+    const totalHairs = numRings * hairsPerRing;
+    const hairPosArr = new Float32Array(totalHairs * 8 * 3);
+    const hairNormArr = new Float32Array(totalHairs * 8 * 3);
+    const hairIndices: number[] = [];
+    for (let h = 0; h < totalHairs; h++) {
+      const base = h * 8;
+      hairIndices.push(
+        base + 0, base + 1, base + 2,
+        base + 0, base + 2, base + 3,
+        base + 4, base + 5, base + 6,
+        base + 4, base + 6, base + 7
+      );
+    }
+    const hairsGeo = new THREE.BufferGeometry();
+    const hairPosAttr = new THREE.BufferAttribute(hairPosArr, 3).setUsage(THREE.DynamicDrawUsage);
+    const hairNormAttr = new THREE.BufferAttribute(hairNormArr, 3).setUsage(THREE.DynamicDrawUsage);
+    hairsGeo.setAttribute('position', hairPosAttr);
+    hairsGeo.setAttribute('normal', hairNormAttr);
+    hairsGeo.setIndex(hairIndices);
+
+    const hairsMesh = new THREE.Mesh(hairsGeo, rootHairMat);
+    const beadInstanced = new THREE.InstancedMesh(hairBeadGeo, hairBeadMat, totalHairs);
+    beadInstanced.count = 0;
+
+    const rootHairsGroup = new THREE.Group();
+    rootHairsGroup.renderOrder = 10;
+    rootHairsGroup.add(hairsMesh, beadInstanced);
+    chamberRig.add(rootHairsGroup);
+
+    // Scratch math objects for root & hairs (zero GC)
+    const rp0 = new THREE.Vector3(0, 1.18, 0.08);
+    const rp1 = new THREE.Vector3(0, 0.52, 0.08);
+    const rp2 = new THREE.Vector3();
+    const rp3 = new THREE.Vector3();
+    const rCoreP3 = new THREE.Vector3();
+    const rootCurve = new THREE.CubicBezierCurve3(rp0, rp1, rp2, rp3);
+    const coreCurve = new THREE.CubicBezierCurve3(rp0, rp1, rp2, rCoreP3);
+    const downAxis = new THREE.Vector3(0, -1, 0);
+    const upZVec = new THREE.Vector3(0, 0, 1);
+    const rTangent = new THREE.Vector3();
+    const rNormalVec = new THREE.Vector3();
+    const rBinormalVec = new THREE.Vector3();
+    const rRadDir = new THREE.Vector3();
+    const rBasePt = new THREE.Vector3();
+    const rToWater = new THREE.Vector3();
+    const rToWaterDir = new THREE.Vector3();
+    const rTipDir = new THREE.Vector3();
+    const rTipPt = new THREE.Vector3();
+    const rCrossA = new THREE.Vector3();
+    const rCrossB = new THREE.Vector3();
+    const rCurvePt = new THREE.Vector3();
+    const beadMatrix = new THREE.Matrix4();
+
+    let lastRootAngle = Number.NaN;
+    let lastWaterPos = '';
+    let lastRootXray: boolean | null = null;
+
+    function writeQuadVertex(arr: Float32Array, offset: number, vx: number, vy: number, vz: number) {
+      arr[offset] = vx;
+      arr[offset + 1] = vy;
+      arr[offset + 2] = vz;
+    }
+
+    // Botanical Tapered Taproot Geometry (updates buffers in-place ONLY when dirty)
+    function updateRootGeometry(angleRad: number, s: HydrotropismState) {
+      const dirty =
+        Number.isNaN(lastRootAngle) ||
+        Math.abs(angleRad - lastRootAngle) > 0.0004 ||
+        s.waterSourcePos !== lastWaterPos ||
+        s.xrayStatoliths !== lastRootXray;
+
+      if (dirty) {
+        lastRootAngle = angleRad;
+        lastWaterPos = s.waterSourcePos;
+
+        const length = 2.25;
+        const tipX = Math.sin(angleRad) * (length * 0.85);
+        const tipY = 1.18 - Math.cos(angleRad) * length;
+
+        rp2.set(tipX * 0.65, 1.18 - length * 0.65, 0.08);
+        rp3.set(tipX, tipY, 0.08);
+        rCoreP3.copy(rp3).sub(rp2).multiplyScalar(0.7).add(rp2);
+
+        if (s.xrayStatoliths !== lastRootXray) {
+          lastRootXray = s.xrayStatoliths;
+          rootMat.color.setHex(s.xrayStatoliths ? 0x06b6d4 : 0xfef9c3);
+          rootMat.emissive.setHex(s.xrayStatoliths ? 0x0891b2 : 0xfef08a);
+          rootMat.emissiveIntensity = s.xrayStatoliths ? 0.6 : 0.22;
+          rootMat.transparent = s.xrayStatoliths;
+          rootMat.opacity = s.xrayStatoliths ? 0.45 : 1.0;
+          rootMat.needsUpdate = true;
+
+          capMat.color.setHex(s.xrayStatoliths ? 0x38bdf8 : 0xf59e0b);
+        }
+
+        updateTubeBuffers(
+          rootCurve,
+          rootSegments,
+          rootRadialSegments,
+          (u) => 0.098 - u * 0.056,
+          rootBuf.posArr,
+          rootBuf.normArr,
+          rootBuf.posAttr,
+          rootBuf.normAttr,
+          rootBuf.geo
+        );
+
+        updateTubeBuffers(
+          coreCurve,
+          coreSegments,
+          coreRadialSegments,
+          () => 0.022,
+          coreBuf.posArr,
+          coreBuf.normArr,
+          coreBuf.posAttr,
+          coreBuf.normAttr,
+          coreBuf.geo
+        );
+
+        rootCapMesh.position.copy(rp3);
+        rootCurve.getTangent(1, rTangent);
+        rootCapMesh.quaternion.setFromUnitVectors(downAxis, rTangent);
+
+        // Update 3D Root Hairs & Instanced Beads in-place
+        const spongePos = spongeGroup.position;
+        let hVertFloatIdx = 0;
+        let beadCount = 0;
+        const hairWidthBase = 0.009;
+        const hairWidthTip = 0.003;
+
+        for (let rIdx = 0; rIdx < numRings; rIdx++) {
+          const u = 0.22 + (rIdx / (numRings - 1)) * 0.48;
+          rootCurve.getPoint(u, rScratchPt);
+          const radius = 0.098 - u * 0.056;
+          rootCurve.getTangent(u, rTangent);
+          rNormalVec.crossVectors(rTangent, upZVec).normalize();
+          rBinormalVec.crossVectors(rTangent, rNormalVec).normalize();
+
+          for (let hIdx = 0; hIdx < hairsPerRing; hIdx++) {
+            const theta = (hIdx / hairsPerRing) * Math.PI * 2 + rIdx * 0.35;
+            rRadDir
+              .copy(rNormalVec)
+              .multiplyScalar(Math.cos(theta))
+              .addScaledVector(rBinormalVec, Math.sin(theta))
               .normalize();
-          } else {
-            // Hair on dry side: shorter
-            hairLength = 0.07 + Math.abs(Math.sin(rIdx * 5 + hIdx)) * 0.04;
-            tipDir = radDir.clone();
+
+            rBasePt.copy(rScratchPt).addScaledVector(rRadDir, radius * 0.95);
+            rToWater.set(spongePos.x - rBasePt.x, spongePos.y - rBasePt.y, 0);
+            rToWaterDir.copy(rToWater).normalize();
+            const dotToWater = rRadDir.dot(rToWaterDir);
+
+            let hairLength: number;
+            if (dotToWater > 0) {
+              hairLength = 0.18 + dotToWater * 0.16 + Math.sin(rIdx * 7 + hIdx) * 0.03;
+              rTipDir
+                .copy(rRadDir)
+                .multiplyScalar(0.4)
+                .addScaledVector(rToWaterDir, 0.6)
+                .normalize();
+            } else {
+              hairLength = 0.07 + Math.abs(Math.sin(rIdx * 5 + hIdx)) * 0.04;
+              rTipDir.copy(rRadDir);
+            }
+
+            rTipPt.copy(rBasePt).addScaledVector(rTipDir, hairLength);
+            rCrossA.crossVectors(rTipDir, rTangent).normalize();
+            rCrossB.crossVectors(rTipDir, rCrossA).normalize();
+
+            // Quad A (4 vertices)
+            writeQuadVertex(hairPosArr, hVertFloatIdx + 0, rBasePt.x - rCrossA.x * hairWidthBase, rBasePt.y - rCrossA.y * hairWidthBase, rBasePt.z - rCrossA.z * hairWidthBase);
+            writeQuadVertex(hairPosArr, hVertFloatIdx + 3, rBasePt.x + rCrossA.x * hairWidthBase, rBasePt.y + rCrossA.y * hairWidthBase, rBasePt.z + rCrossA.z * hairWidthBase);
+            writeQuadVertex(hairPosArr, hVertFloatIdx + 6, rTipPt.x + rCrossA.x * hairWidthTip, rTipPt.y + rCrossA.y * hairWidthTip, rTipPt.z + rCrossA.z * hairWidthTip);
+            writeQuadVertex(hairPosArr, hVertFloatIdx + 9, rTipPt.x - rCrossA.x * hairWidthTip, rTipPt.y - rCrossA.y * hairWidthTip, rTipPt.z - rCrossA.z * hairWidthTip);
+            // Quad B (4 vertices)
+            writeQuadVertex(hairPosArr, hVertFloatIdx + 12, rBasePt.x - rCrossB.x * hairWidthBase, rBasePt.y - rCrossB.y * hairWidthBase, rBasePt.z - rCrossB.z * hairWidthBase);
+            writeQuadVertex(hairPosArr, hVertFloatIdx + 15, rBasePt.x + rCrossB.x * hairWidthBase, rBasePt.y + rCrossB.y * hairWidthBase, rBasePt.z + rCrossB.z * hairWidthBase);
+            writeQuadVertex(hairPosArr, hVertFloatIdx + 18, rTipPt.x + rCrossB.x * hairWidthTip, rTipPt.y + rCrossB.y * hairWidthTip, rTipPt.z + rCrossB.z * hairWidthTip);
+            writeQuadVertex(hairPosArr, hVertFloatIdx + 21, rTipPt.x - rCrossB.x * hairWidthTip, rTipPt.y - rCrossB.y * hairWidthTip, rTipPt.z - rCrossB.z * hairWidthTip);
+
+            for (let v = 0; v < 8; v++) {
+              writeQuadVertex(hairNormArr, hVertFloatIdx + v * 3, rRadDir.x, rRadDir.y, rRadDir.z);
+            }
+            hVertFloatIdx += 24;
+
+            if (dotToWater > 0.45 && (rIdx + hIdx) % 3 === 0) {
+              beadMatrix.makeTranslation(rTipPt.x, rTipPt.y, rTipPt.z);
+              beadInstanced.setMatrixAt(beadCount++, beadMatrix);
+            }
           }
+        }
 
-          const tipPt = new THREE.Vector3().copy(basePt).addScaledVector(tipDir, hairLength);
+        hairPosAttr.needsUpdate = true;
+        hairNormAttr.needsUpdate = true;
+        hairsGeo.computeBoundingSphere();
 
-          // Volumetric 3D Cross-Quad (Two intersecting perpendicular quads for full 3D visibility)
-          const hairWidthBase = 0.009;
-          const hairWidthTip = 0.003;
-          const crossA = new THREE.Vector3().crossVectors(tipDir, tangentAtU).normalize();
-          const crossB = new THREE.Vector3().crossVectors(tipDir, crossA).normalize();
+        beadInstanced.count = beadCount;
+        beadInstanced.instanceMatrix.needsUpdate = true;
 
-          // Quad A
-          const qA0 = new THREE.Vector3().copy(basePt).addScaledVector(crossA, -hairWidthBase);
-          const qA1 = new THREE.Vector3().copy(basePt).addScaledVector(crossA, hairWidthBase);
-          const qA2 = new THREE.Vector3().copy(tipPt).addScaledVector(crossA, hairWidthTip);
-          const qA3 = new THREE.Vector3().copy(tipPt).addScaledVector(crossA, -hairWidthTip);
-
-          // Quad B
-          const qB0 = new THREE.Vector3().copy(basePt).addScaledVector(crossB, -hairWidthBase);
-          const qB1 = new THREE.Vector3().copy(basePt).addScaledVector(crossB, hairWidthBase);
-          const qB2 = new THREE.Vector3().copy(tipPt).addScaledVector(crossB, hairWidthTip);
-          const qB3 = new THREE.Vector3().copy(tipPt).addScaledVector(crossB, -hairWidthTip);
-
-          const quadPoints = [qA0, qA1, qA2, qA3, qB0, qB1, qB2, qB3];
-          quadPoints.forEach((v) => {
-            hairVertices.push(v.x, v.y, v.z);
-            hairNormals.push(radDir.x, radDir.y, radDir.z);
-          });
-
-          // Quad A faces
-          hairIndices.push(
-            hairVertOffset + 0, hairVertOffset + 1, hairVertOffset + 2,
-            hairVertOffset + 0, hairVertOffset + 2, hairVertOffset + 3
-          );
-          // Quad B faces
-          hairIndices.push(
-            hairVertOffset + 4, hairVertOffset + 5, hairVertOffset + 6,
-            hairVertOffset + 4, hairVertOffset + 6, hairVertOffset + 7
-          );
-
-          hairVertOffset += 8;
-
-          // On 25% of wet-facing hairs, add glistening capillary water bead at tip
-          if (dotToWater > 0.45 && (rIdx + hIdx) % 3 === 0) {
-            const bead = new THREE.Mesh(hairBeadGeo, hairBeadMat);
-            bead.position.copy(tipPt);
-            rootHairsGroup.add(bead);
-          }
+        if (statolithPoints) {
+          statolithPoints.visible = s.xrayStatoliths;
+          if (s.xrayStatoliths) statolithPoints.position.copy(rp3);
         }
       }
 
-      const hairsGeo = new THREE.BufferGeometry();
-      hairsGeo.setAttribute('position', new THREE.Float32BufferAttribute(hairVertices, 3));
-      hairsGeo.setAttribute('normal', new THREE.Float32BufferAttribute(hairNormals, 3));
-      hairsGeo.setIndex(hairIndices);
-
-      const hairsMesh = new THREE.Mesh(hairsGeo, rootHairMat);
-      rootHairsGroup.add(hairsMesh);
-      chamberRig.add(rootHairsGroup);
-
-      // Statolith particles in Root Cap
-      if (statolithPoints && s.xrayStatoliths) {
-        statolithPoints.visible = true;
-        statolithPoints.position.copy(p3);
-      } else if (statolithPoints) {
-        statolithPoints.visible = false;
-      }
-
-      // Update Auxin transport flow along the curve
-      if (auxinParticles && s.xrayStatoliths) {
-        auxinParticles.visible = true;
-        const posAttr = auxinParticles.geometry.attributes.position as THREE.BufferAttribute;
-        for (let k = 0; k < auxinCount; k++) {
-          const uVal = auxinTValues[k];
-          const curvePt = rootCurve.getPoint(uVal);
-          // Asymmetric accumulation on the dry/lower side
+      if (auxinParticles) {
+        auxinParticles.visible = s.xrayStatoliths;
+        if (s.xrayStatoliths) {
+          const posAttr = auxinParticles.geometry.attributes.position as THREE.BufferAttribute;
           const sideOffset = Math.sin(angleRad) > 0 ? -0.045 : 0.045;
-          posAttr.setXYZ(k, curvePt.x + sideOffset, curvePt.y, 0.09);
+          for (let k = 0; k < auxinCount; k++) {
+            rootCurve.getPoint(auxinTValues[k], rCurvePt);
+            posAttr.setXYZ(k, rCurvePt.x + sideOffset, rCurvePt.y, 0.09);
+          }
+          posAttr.needsUpdate = true;
         }
-        posAttr.needsUpdate = true;
-      } else if (auxinParticles) {
-        auxinParticles.visible = false;
       }
     }
 
@@ -998,13 +1060,17 @@ export default function RootTropismScene({
 
     // Animation & Calculation Loop
     let animationFrameId: number;
-    let clock = new THREE.Clock();
+    const timer = new THREE.Timer();
+    timer.connect(document);
+    let lastReportedRootAngle = Number.NaN;
+    let lastRootReportTime = 0;
 
-    const animate = () => {
+    const animate = (timestamp?: number) => {
       animationFrameId = requestAnimationFrame(animate);
       if (!isActiveRef.current) return;
 
-      const delta = clock.getDelta();
+      timer.update(timestamp);
+      const delta = Math.min(timer.getDelta(), 0.1);
       const s = stateRef.current;
       const playing = isPlayingRef.current;
 
@@ -1044,13 +1110,28 @@ export default function RootTropismScene({
       currentAngleRef.current += (targetRad - currentAngleRef.current) * Math.min(growthRate, 0.2);
 
       if (onUpdateRootAngle) {
-        onUpdateRootAngle(Math.round(((currentAngleRef.current * 180) / Math.PI) * 10) / 10);
+        const curDeg = Math.round(((currentAngleRef.current * 180) / Math.PI) * 10) / 10;
+        const now = performance.now();
+        const settled = Math.abs(targetRad - currentAngleRef.current) < 0.001;
+        if (curDeg !== lastReportedRootAngle && (settled || now - lastRootReportTime >= 100)) {
+          lastReportedRootAngle = curDeg;
+          lastRootReportTime = now;
+          onUpdateRootAngle(curDeg);
+        }
+      }
+
+      // Auxin particle flow speed (advance before updating stream positions)
+      if (auxinParticles && s.xrayStatoliths) {
+        for (let k = 0; k < auxinCount; k++) {
+          auxinTValues[k] += delta * 0.45;
+          if (auxinTValues[k] > 1.0) auxinTValues[k] = 0.0;
+        }
       }
 
       updateRootGeometry(currentAngleRef.current, s);
 
       // Ripple moisture gradient animation
-      const time = clock.getElapsedTime();
+      const time = timer.getElapsed();
       moistureHalo.scale.setScalar(1 + Math.sin(time * 2.4) * 0.06);
 
       // Animate floating vapor particles
@@ -1063,14 +1144,6 @@ export default function RootTropismScene({
         vPos.setXYZ(vi, Math.cos(ang) * r, Math.sin(ang) * r, 0.1 + Math.sin(time * 2.5 + ph) * 0.02);
       }
       vPos.needsUpdate = true;
-
-      // Auxin particle flow speed
-      if (auxinParticles && s.xrayStatoliths) {
-        for (let k = 0; k < auxinCount; k++) {
-          auxinTValues[k] += delta * 0.45;
-          if (auxinTValues[k] > 1.0) auxinTValues[k] = 0.0;
-        }
-      }
 
       anatomyGroup.visible = showAnatomyRef.current;
 
@@ -1091,18 +1164,9 @@ export default function RootTropismScene({
     return () => {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
+      timer.dispose();
       controls.dispose();
-      scene.traverse((obj) => {
-        if ((obj as THREE.Mesh).isMesh) {
-          const mesh = obj as THREE.Mesh;
-          mesh.geometry?.dispose();
-          if (Array.isArray(mesh.material)) {
-            (mesh.material as THREE.Material[]).forEach((m) => m.dispose());
-          } else {
-            (mesh.material as THREE.Material)?.dispose();
-          }
-        }
-      });
+      disposeSceneResources(scene);
       renderer.dispose();
       renderer.forceContextLoss();
       if (container && renderer.domElement) {

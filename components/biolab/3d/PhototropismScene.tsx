@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { PhototropismState } from '../types';
-import { setupLabEnvironment } from './LabEnvironment';
+import { setupLabEnvironment, disposeSceneResources } from './LabEnvironment';
 
 interface Props {
   state: PhototropismState;
@@ -210,16 +210,12 @@ export default function PhototropismScene({
       potGroup.add(crumb);
     }
 
-    // Plant Stem Group
+    // Plant Stem Group (reuses all geometries/materials in-place for zero GC & zero WebGL leak)
     const plantGroup = new THREE.Group();
     plantGroup.position.set(0, 1.36, 0);
     scene.add(plantGroup);
 
-    let stemMesh: THREE.Mesh | null = null;
-    let leavesMesh: THREE.Group | null = null;
-    let treatmentItem: THREE.Mesh | null = null;
     let auxinParticles: THREE.Points | null = null;
-    let cellsGroup: THREE.Group | null = null;
 
     // Auxin particle geometry setup
     const particleCount = 220;
@@ -501,400 +497,468 @@ export default function PhototropismScene({
       return geo;
     }
 
-    // Rebuild Plant Stem & Leaf Geometry with authentic botanical features
+    // Pre-allocated reusable plant structures (zero per-frame geometry/material creation!)
+    const stemSegments = 48;
+    const stemRadialSegments = 24;
+    const stemVertCount = (stemSegments + 1) * (stemRadialSegments + 1);
+    const stemPositions = new Float32Array(stemVertCount * 3);
+    const stemNormals = new Float32Array(stemVertCount * 3);
+    const stemColors = new Float32Array(stemVertCount * 3);
+    const stemIndices: number[] = [];
+    for (let i = 0; i < stemSegments; i++) {
+      for (let j = 0; j < stemRadialSegments; j++) {
+        const a = i * (stemRadialSegments + 1) + j;
+        const b = (i + 1) * (stemRadialSegments + 1) + j;
+        const c = (i + 1) * (stemRadialSegments + 1) + (j + 1);
+        const d = i * (stemRadialSegments + 1) + (j + 1);
+        stemIndices.push(a, b, d);
+        stemIndices.push(b, c, d);
+      }
+    }
+
+    const stemGeo = new THREE.BufferGeometry();
+    const stemPosAttr = new THREE.BufferAttribute(stemPositions, 3).setUsage(THREE.DynamicDrawUsage);
+    const stemNormAttr = new THREE.BufferAttribute(stemNormals, 3).setUsage(THREE.DynamicDrawUsage);
+    const stemColorAttr = new THREE.BufferAttribute(stemColors, 3).setUsage(THREE.DynamicDrawUsage);
+    stemGeo.setAttribute('position', stemPosAttr);
+    stemGeo.setAttribute('normal', stemNormAttr);
+    stemGeo.setAttribute('color', stemColorAttr);
+    stemGeo.setIndex(stemIndices);
+
+    const stemMat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.36,
+      metalness: 0.02,
+      transparent: false,
+      opacity: 1.0,
+    });
+    const stemMesh = new THREE.Mesh(stemGeo, stemMat);
+    stemMesh.castShadow = true;
+    stemMesh.receiveShadow = true;
+    plantGroup.add(stemMesh);
+
+    // Reusable Crown / Leaves Group
+    const leavesMesh = new THREE.Group();
+    const cotyledonMat = new THREE.MeshStandardMaterial({
+      color: 0x84cc16,
+      roughness: 0.32,
+      metalness: 0.02,
+      transparent: false,
+      opacity: 1.0,
+    });
+    const cotyledonGeoL = new THREE.SphereGeometry(0.11, 16, 16);
+    cotyledonGeoL.scale(0.85, 0.65, 1.25);
+    const cotyledonL = new THREE.Mesh(cotyledonGeoL, cotyledonMat);
+    cotyledonL.position.set(-0.09, -0.06, 0);
+    cotyledonL.rotation.set(0.15, 0, 0.4);
+    cotyledonL.castShadow = true;
+    leavesMesh.add(cotyledonL);
+
+    const cotyledonGeoR = new THREE.SphereGeometry(0.11, 16, 16);
+    cotyledonGeoR.scale(0.85, 0.65, 1.25);
+    const cotyledonR = new THREE.Mesh(cotyledonGeoR, cotyledonMat);
+    cotyledonR.position.set(0.09, -0.06, 0);
+    cotyledonR.rotation.set(0.15, 0, -0.4);
+    cotyledonR.castShadow = true;
+    leavesMesh.add(cotyledonR);
+
+    const petioleMat = new THREE.MeshStandardMaterial({
+      color: 0x22c55e,
+      roughness: 0.38,
+      metalness: 0.02,
+    });
+    const leafBladeMat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      side: THREE.DoubleSide,
+      roughness: 0.34,
+      metalness: 0.02,
+      transparent: false,
+      opacity: 1.0,
+    });
+    const leafBladeGeo = createBotanicalLeafGeometry(0.88, 0.52, 0.09, 0.22, 0.014);
+
+    const petioleCurveL = new THREE.CubicBezierCurve3(
+      new THREE.Vector3(0, 0.01, 0),
+      new THREE.Vector3(-0.10, 0.06, 0.03),
+      new THREE.Vector3(-0.22, 0.12, 0.05),
+      new THREE.Vector3(-0.32, 0.15, 0.06)
+    );
+    const petioleGeoL = new THREE.TubeGeometry(petioleCurveL, 16, 0.022, 10, false);
+    const petioleMeshL = new THREE.Mesh(petioleGeoL, petioleMat);
+    petioleMeshL.castShadow = true;
+    leavesMesh.add(petioleMeshL);
+
+    const leafBladeL = new THREE.Mesh(leafBladeGeo, leafBladeMat);
+    leafBladeL.position.set(-0.32, 0.15, 0.06);
+    leafBladeL.rotation.set(-0.32, -0.42, 0.82);
+    leafBladeL.castShadow = true;
+    leavesMesh.add(leafBladeL);
+
+    const midribCurveL = new THREE.CubicBezierCurve3(
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0.35, -0.05),
+      new THREE.Vector3(0, 0.65, -0.12),
+      new THREE.Vector3(0, 0.88, -0.19)
+    );
+    const midribGeoL = new THREE.TubeGeometry(midribCurveL, 16, 0.014, 8, false);
+    const midribMat = new THREE.MeshStandardMaterial({ color: 0x86efac, roughness: 0.4 });
+    const midribMeshL = new THREE.Mesh(midribGeoL, midribMat);
+    leafBladeL.add(midribMeshL);
+
+    const petioleCurveR = new THREE.CubicBezierCurve3(
+      new THREE.Vector3(0, 0.01, 0),
+      new THREE.Vector3(0.10, 0.06, 0.03),
+      new THREE.Vector3(0.22, 0.12, 0.05),
+      new THREE.Vector3(0.32, 0.15, 0.06)
+    );
+    const petioleGeoR = new THREE.TubeGeometry(petioleCurveR, 16, 0.022, 10, false);
+    const petioleMeshR = new THREE.Mesh(petioleGeoR, petioleMat);
+    petioleMeshR.castShadow = true;
+    leavesMesh.add(petioleMeshR);
+
+    const leafBladeR = new THREE.Mesh(leafBladeGeo, leafBladeMat);
+    leafBladeR.position.set(0.32, 0.15, 0.06);
+    leafBladeR.rotation.set(-0.32, 0.42, -0.82);
+    leafBladeR.castShadow = true;
+    leavesMesh.add(leafBladeR);
+
+    const midribMeshR = new THREE.Mesh(midribGeoL, midribMat);
+    leafBladeR.add(midribMeshR);
+
+    const apicalGroup = new THREE.Group();
+    apicalGroup.position.set(0, 0.03, 0);
+    const budLeafMat = new THREE.MeshStandardMaterial({ color: 0xbef264, roughness: 0.3 });
+    const budLeafGeo = new THREE.SphereGeometry(0.06, 12, 12);
+    budLeafGeo.scale(0.8, 1.8, 0.35);
+
+    const budL = new THREE.Mesh(budLeafGeo, budLeafMat);
+    budL.position.set(-0.025, 0.07, 0.01);
+    budL.rotation.set(0.1, 0.2, 0.18);
+    apicalGroup.add(budL);
+
+    const budR = new THREE.Mesh(budLeafGeo, budLeafMat);
+    budR.position.set(0.025, 0.07, -0.01);
+    budR.rotation.set(-0.1, -0.2, -0.18);
+    apicalGroup.add(budR);
+    leavesMesh.add(apicalGroup);
+    plantGroup.add(leavesMesh);
+
+    // Pre-allocated Darwin Treatment meshes (toggled by visibility, no per-frame allocation)
+    const opaqueCapMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.18, 0.42, 24),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.35, metalness: 0.5 })
+    );
+    opaqueCapMesh.castShadow = true;
+    opaqueCapMesh.visible = false;
+    plantGroup.add(opaqueCapMesh);
+
+    const transparentCapMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.18, 0.42, 24),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xe0f2fe,
+        opacity: 0.32,
+        transparent: true,
+        roughness: 0.04,
+        clearcoat: 1.0,
+        depthWrite: false,
+      })
+    );
+    transparentCapMesh.visible = false;
+    plantGroup.add(transparentCapMesh);
+
+    const agarMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.24, 0.12, 0.24),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xfef08a,
+        opacity: 0.65,
+        transparent: true,
+        roughness: 0.1,
+        clearcoat: 0.8,
+        depthWrite: false,
+      })
+    );
+    agarMesh.visible = false;
+    plantGroup.add(agarMesh);
+
+    const micaMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.25, 0.03, 0.14),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.95, roughness: 0.1 })
+    );
+    micaMesh.visible = false;
+    plantGroup.add(micaMesh);
+
+    const cutMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.068, 0.068, 0.02, 24),
+      new THREE.MeshStandardMaterial({ color: 0x86efac, roughness: 0.5 })
+    );
+    cutMesh.visible = false;
+    plantGroup.add(cutMesh);
+
+    // Pre-allocated Cellular Elongation Visualizer (X-Ray Mode)
+    const cellsGroup = new THREE.Group();
+    cellsGroup.visible = false;
+    plantGroup.add(cellsGroup);
+
+    const cellCount = 9;
+    const lightCellGeo = new THREE.BoxGeometry(0.038, 0.068, 0.038);
+    const lightCellMat = new THREE.MeshStandardMaterial({
+      color: 0x34d399,
+      roughness: 0.2,
+      transparent: true,
+      opacity: 0.85,
+    });
+    const darkCellGeo = new THREE.BoxGeometry(0.038, 0.155, 0.038);
+    const darkCellMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      emissive: 0xd97706,
+      emissiveIntensity: 0.35,
+      roughness: 0.2,
+      transparent: true,
+      opacity: 0.92,
+    });
+    const lightCellMeshes: THREE.Mesh[] = [];
+    const darkCellMeshes: THREE.Mesh[] = [];
+    for (let c = 0; c < cellCount; c++) {
+      const lc = new THREE.Mesh(lightCellGeo, lightCellMat);
+      const dc = new THREE.Mesh(darkCellGeo, darkCellMat);
+      cellsGroup.add(lc, dc);
+      lightCellMeshes.push(lc);
+      darkCellMeshes.push(dc);
+    }
+
+    // Scratch math objects reused across frames (zero GC allocations)
+    const p0 = new THREE.Vector3(0, 0, 0);
+    const p1 = new THREE.Vector3();
+    const p2 = new THREE.Vector3();
+    const p3 = new THREE.Vector3();
+    const p4 = new THREE.Vector3();
+    const plantCurve = new THREE.CatmullRomCurve3([p0, p1, p2, p3, p4], false, 'centripetal', 0.5);
+    const upAxis = new THREE.Vector3(0, 1, 0);
+    const crownQuat = new THREE.Quaternion();
+    const scratchPt = new THREE.Vector3();
+    const scratchNormal = new THREE.Vector3();
+    const scratchVertex = new THREE.Vector3();
+    const scratchTangent = new THREE.Vector3();
+    const scratchCellNormal = new THREE.Vector3();
+    const scratchOffset = new THREE.Vector3();
+
+    let lastPlantAngle = Number.NaN;
+    let lastPlantTreatment = '';
+    let lastPlantXray: boolean | null = null;
+    let lastLightAngleDir = 999;
+
+    // Update Plant Stem, Leaves, Treatments & Cells in-place ONLY when state/angle changes
     function updatePlantGeometry(angleRad: number, s: PhototropismState) {
-      if (stemMesh) plantGroup.remove(stemMesh);
-      if (leavesMesh) plantGroup.remove(leavesMesh);
-      if (treatmentItem) plantGroup.remove(treatmentItem);
-      if (cellsGroup) plantGroup.remove(cellsGroup);
+      const lightDir = s.lightAngle < -10 ? -1 : s.lightAngle > 10 ? 1 : 0;
+      const geometryDirty =
+        Number.isNaN(lastPlantAngle) ||
+        Math.abs(angleRad - lastPlantAngle) > 0.0004 ||
+        s.plantTreatment !== lastPlantTreatment ||
+        s.xrayMode !== lastPlantXray ||
+        lightDir !== lastLightAngleDir;
 
-      const height = 2.75;
-      const isDecapitated = s.plantTreatment === 'decapitated';
-      const actualHeight = isDecapitated ? height * 0.72 : height;
+      if (geometryDirty) {
+        lastPlantAngle = angleRad;
+        lastPlantTreatment = s.plantTreatment;
+        lastLightAngleDir = lightDir;
 
-      // Realistic biological bending curve using 5 progressive control points
-      const tipOffsetX = Math.sin(angleRad) * (actualHeight * 0.62);
-      const tipOffsetY = Math.cos(angleRad) * (actualHeight * 0.90) + actualHeight * 0.10;
+        const height = 2.75;
+        const isDecapitated = s.plantTreatment === 'decapitated';
+        const actualHeight = isDecapitated ? height * 0.72 : height;
 
-      const p0 = new THREE.Vector3(0, 0, 0); // Root collar in soil
-      const p1 = new THREE.Vector3(0, actualHeight * 0.28, 0); // Anchored basal stem
-      const p2 = new THREE.Vector3(tipOffsetX * 0.28, actualHeight * 0.60, 0); // Mid-stem inflection
-      const p3 = new THREE.Vector3(tipOffsetX * 0.75, actualHeight * 0.86, 0); // Elongation zone
-      const p4 = new THREE.Vector3(tipOffsetX, tipOffsetY, 0); // Shoot apical apex
+        const tipOffsetX = Math.sin(angleRad) * (actualHeight * 0.62);
+        const tipOffsetY = Math.cos(angleRad) * (actualHeight * 0.90) + actualHeight * 0.10;
 
-      const curve = new THREE.CatmullRomCurve3([p0, p1, p2, p3, p4], false, 'centripetal', 0.5);
+        p1.set(0, actualHeight * 0.28, 0);
+        p2.set(tipOffsetX * 0.28, actualHeight * 0.60, 0);
+        p3.set(tipOffsetX * 0.75, actualHeight * 0.86, 0);
+        p4.set(tipOffsetX, tipOffsetY, 0);
 
-      // Anatomical Stem with Botanical Taper & Micro-fluting
-      const segments = 48;
-      const radialSegments = 24;
-      const frames = curve.computeFrenetFrames(segments, false);
-      const stemVertices: number[] = [];
-      const stemIndices: number[] = [];
-      const stemNormals: number[] = [];
-      const stemColors: number[] = [];
+        // Update X-ray material modes only when xrayMode changes
+        if (s.xrayMode !== lastPlantXray) {
+          lastPlantXray = s.xrayMode;
+          stemMat.roughness = s.xrayMode ? 0.2 : 0.36;
+          stemMat.transparent = s.xrayMode;
+          stemMat.opacity = s.xrayMode ? 0.35 : 1.0;
+          stemMat.needsUpdate = true;
 
-      for (let i = 0; i <= segments; i++) {
-        const u = i / segments;
-        const pt = curve.getPointAt(u);
-        const N = frames.normals[i];
-        const B = frames.binormals[i];
+          cotyledonMat.color.setHex(s.xrayMode ? 0x06b6d4 : 0x84cc16);
+          cotyledonMat.transparent = s.xrayMode;
+          cotyledonMat.opacity = s.xrayMode ? 0.45 : 1.0;
+          cotyledonMat.needsUpdate = true;
 
-        // Botanical taper: Root collar (r=0.118), mid stem (r=0.088), apex (r=0.046)
-        const radiusBase = 0.118 - (u * 0.072);
+          petioleMat.color.setHex(s.xrayMode ? 0x0891b2 : 0x22c55e);
 
-        // Biological Color Gradient per vertex:
-        // Base (u < 0.16): Ivory-pink succulent root collar (anthocyanin protection)
-        // Mid (u 0.16 - 0.75): Rich translucent jade chlorophyll green
-        // Top (u > 0.75): Bright tender chartreuse lime
-        let rVal = 0.10;
-        let gVal = 0.62;
-        let bVal = 0.24;
-
-        if (u < 0.16) {
-          const tBase = u / 0.16;
-          rVal = THREE.MathUtils.lerp(0.86, 0.10, tBase);
-          gVal = THREE.MathUtils.lerp(0.84, 0.62, tBase);
-          bVal = THREE.MathUtils.lerp(0.72, 0.24, tBase);
-        } else if (u > 0.75) {
-          const tTop = (u - 0.75) / 0.25;
-          rVal = THREE.MathUtils.lerp(0.10, 0.68, tTop);
-          gVal = THREE.MathUtils.lerp(0.62, 0.94, tTop);
-          bVal = THREE.MathUtils.lerp(0.24, 0.20, tTop);
+          leafBladeMat.roughness = s.xrayMode ? 0.2 : 0.34;
+          leafBladeMat.transparent = s.xrayMode;
+          leafBladeMat.opacity = s.xrayMode ? 0.42 : 1.0;
+          leafBladeMat.needsUpdate = true;
         }
 
+        const frames = plantCurve.computeFrenetFrames(stemSegments, false);
+        let vIdx = 0;
+
+        for (let i = 0; i <= stemSegments; i++) {
+          const u = i / stemSegments;
+          plantCurve.getPointAt(u, scratchPt);
+          const N = frames.normals[i];
+          const B = frames.binormals[i];
+          const radiusBase = 0.118 - u * 0.072;
+
+          let rVal = 0.10;
+          let gVal = 0.62;
+          let bVal = 0.24;
+
+          if (s.xrayMode) {
+            rVal = 0.06;
+            gVal = 0.72;
+            bVal = 0.85;
+          } else if (u < 0.16) {
+            const tBase = u / 0.16;
+            rVal = THREE.MathUtils.lerp(0.86, 0.10, tBase);
+            gVal = THREE.MathUtils.lerp(0.84, 0.62, tBase);
+            bVal = THREE.MathUtils.lerp(0.72, 0.24, tBase);
+          } else if (u > 0.75) {
+            const tTop = (u - 0.75) / 0.25;
+            rVal = THREE.MathUtils.lerp(0.10, 0.68, tTop);
+            gVal = THREE.MathUtils.lerp(0.62, 0.94, tTop);
+            bVal = THREE.MathUtils.lerp(0.24, 0.20, tTop);
+          }
+
+          for (let j = 0; j <= stemRadialSegments; j++) {
+            const theta = (j / stemRadialSegments) * Math.PI * 2;
+            const sinTheta = Math.sin(theta);
+            const cosTheta = Math.cos(theta);
+            const flute = Math.sin(theta * 6) * 0.0035;
+            const currentR = radiusBase + flute;
+
+            scratchNormal
+              .copy(N)
+              .multiplyScalar(cosTheta)
+              .addScaledVector(B, sinTheta)
+              .normalize();
+            scratchVertex.copy(scratchPt).addScaledVector(scratchNormal, currentR);
+
+            stemPositions[vIdx] = scratchVertex.x;
+            stemPositions[vIdx + 1] = scratchVertex.y;
+            stemPositions[vIdx + 2] = scratchVertex.z;
+
+            stemNormals[vIdx] = scratchNormal.x;
+            stemNormals[vIdx + 1] = scratchNormal.y;
+            stemNormals[vIdx + 2] = scratchNormal.z;
+
+            stemColors[vIdx] = rVal;
+            stemColors[vIdx + 1] = gVal;
+            stemColors[vIdx + 2] = bVal;
+            vIdx += 3;
+          }
+        }
+
+        stemPosAttr.needsUpdate = true;
+        stemNormAttr.needsUpdate = true;
+        stemColorAttr.needsUpdate = true;
+        stemGeo.computeBoundingSphere();
+
+        // Update Leaves & Apical Bud position/orientation
+        leavesMesh.visible = !isDecapitated;
+        opaqueCapMesh.visible = false;
+        transparentCapMesh.visible = false;
+        agarMesh.visible = false;
+        micaMesh.visible = false;
+        cutMesh.visible = false;
+
+        if (!isDecapitated) {
+          leavesMesh.position.copy(p4);
+          plantCurve.getTangentAt(1.0, scratchTangent).normalize();
+          crownQuat.setFromUnitVectors(upAxis, scratchTangent);
+          leavesMesh.quaternion.copy(crownQuat);
+
+          leafBladeL.rotation.y = lightDir < 0 ? -0.57 : -0.42;
+          leafBladeR.rotation.y = lightDir > 0 ? 0.57 : 0.42;
+
+          if (s.plantTreatment === 'opaque_cap') {
+            opaqueCapMesh.visible = true;
+            opaqueCapMesh.position.copy(p4);
+            opaqueCapMesh.quaternion.copy(crownQuat);
+            opaqueCapMesh.position.y += 0.18;
+          } else if (s.plantTreatment === 'transparent_cap') {
+            transparentCapMesh.visible = true;
+            transparentCapMesh.position.copy(p4);
+            transparentCapMesh.quaternion.copy(crownQuat);
+            transparentCapMesh.position.y += 0.18;
+          } else if (s.plantTreatment === 'agar_block') {
+            agarMesh.visible = true;
+            agarMesh.position.copy(p4);
+            agarMesh.position.y -= 0.06;
+          } else if (s.plantTreatment === 'mica_insert') {
+            micaMesh.visible = true;
+            micaMesh.position.copy(p4);
+            micaMesh.position.y -= 0.10;
+            micaMesh.position.x += angleRad > 0 ? -0.08 : 0.08;
+          }
+        } else {
+          cutMesh.visible = true;
+          cutMesh.position.copy(p4);
+        }
+
+        // Update Cellular Elongation Visualizer (X-Ray Mode)
+        cellsGroup.visible = s.xrayMode;
         if (s.xrayMode) {
-          rVal = 0.06;
-          gVal = 0.72;
-          bVal = 0.85;
-        }
+          const darkSideDir = angleRad >= 0 ? -1 : 1;
+          for (let c = 0; c < cellCount; c++) {
+            const uCell = 0.42 + (c / (cellCount - 1)) * 0.44;
+            plantCurve.getPointAt(uCell, scratchPt);
+            plantCurve.getTangentAt(uCell, scratchTangent).normalize();
+            scratchCellNormal.set(-scratchTangent.y, scratchTangent.x, 0).normalize();
 
-        for (let j = 0; j <= radialSegments; j++) {
-          const v = j / radialSegments;
-          const theta = v * Math.PI * 2;
-          const sinTheta = Math.sin(theta);
-          const cosTheta = Math.cos(theta);
+            scratchOffset.copy(scratchCellNormal).multiplyScalar(-darkSideDir * 0.065);
+            lightCellMeshes[c].position.copy(scratchPt).add(scratchOffset);
 
-          // Subtle organic longitudinal ridges/striations (succulent hypocotyl texture)
-          const flute = Math.sin(theta * 6) * 0.0035;
-          const currentR = radiusBase + flute;
-
-          const normal = new THREE.Vector3()
-            .copy(N).multiplyScalar(cosTheta)
-            .addScaledVector(B, sinTheta)
-            .normalize();
-
-          const vertex = new THREE.Vector3().copy(pt).addScaledVector(normal, currentR);
-
-          stemVertices.push(vertex.x, vertex.y, vertex.z);
-          stemNormals.push(normal.x, normal.y, normal.z);
-          stemColors.push(rVal, gVal, bVal);
+            scratchOffset.copy(scratchCellNormal).multiplyScalar(darkSideDir * 0.065);
+            darkCellMeshes[c].position.copy(scratchPt).add(scratchOffset);
+          }
         }
       }
 
-      for (let i = 0; i < segments; i++) {
-        for (let j = 0; j < radialSegments; j++) {
-          const a = i * (radialSegments + 1) + j;
-          const b = (i + 1) * (radialSegments + 1) + j;
-          const c = (i + 1) * (radialSegments + 1) + (j + 1);
-          const d = i * (radialSegments + 1) + (j + 1);
-
-          stemIndices.push(a, b, d);
-          stemIndices.push(b, c, d);
-        }
-      }
-
-      const stemGeo = new THREE.BufferGeometry();
-      stemGeo.setAttribute('position', new THREE.Float32BufferAttribute(stemVertices, 3));
-      stemGeo.setAttribute('normal', new THREE.Float32BufferAttribute(stemNormals, 3));
-      stemGeo.setAttribute('color', new THREE.Float32BufferAttribute(stemColors, 3));
-      stemGeo.setIndex(stemIndices);
-
-      const stemMat = new THREE.MeshStandardMaterial({
-        vertexColors: true,
-        roughness: s.xrayMode ? 0.2 : 0.36,
-        metalness: 0.02,
-        transparent: s.xrayMode,
-        opacity: s.xrayMode ? 0.35 : 1.0,
-      });
-
-      stemMesh = new THREE.Mesh(stemGeo, stemMat);
-      stemMesh.castShadow = true;
-      stemMesh.receiveShadow = true;
-      plantGroup.add(stemMesh);
-
-      // Leaves and Terminal Bud
-      if (!isDecapitated) {
-        leavesMesh = new THREE.Group();
-        leavesMesh.position.copy(p4);
-
-        // Continuous mathematical alignment: Align crown's local Y with curve tangent at apex
-        const apexTangent = curve.getTangentAt(1.0).normalize();
-        const crownQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), apexTangent);
-        leavesMesh.quaternion.copy(crownQuat);
-
-        // 1. Two Fleshy Cotyledons (Hai lá mầm đậu mọng thịt) at Cotyledonary Node
-        const cotyledonMat = new THREE.MeshStandardMaterial({
-          color: s.xrayMode ? 0x06b6d4 : 0x84cc16,
-          roughness: 0.32,
-          metalness: 0.02,
-          transparent: s.xrayMode,
-          opacity: s.xrayMode ? 0.45 : 1.0,
-        });
-
-        // Left Cotyledon
-        const cotyledonGeoL = new THREE.SphereGeometry(0.11, 16, 16);
-        cotyledonGeoL.scale(0.85, 0.65, 1.25);
-        const cotyledonL = new THREE.Mesh(cotyledonGeoL, cotyledonMat);
-        cotyledonL.position.set(-0.09, -0.06, 0);
-        cotyledonL.rotation.set(0.15, 0, 0.4);
-        cotyledonL.castShadow = true;
-        leavesMesh.add(cotyledonL);
-
-        // Right Cotyledon
-        const cotyledonGeoR = new THREE.SphereGeometry(0.11, 16, 16);
-        cotyledonGeoR.scale(0.85, 0.65, 1.25);
-        const cotyledonR = new THREE.Mesh(cotyledonGeoR, cotyledonMat);
-        cotyledonR.position.set(0.09, -0.06, 0);
-        cotyledonR.rotation.set(0.15, 0, -0.4);
-        cotyledonR.castShadow = true;
-        leavesMesh.add(cotyledonR);
-
-        // 2. Petioles & True Leaves (Đôi lá thật đầu tiên với cuống lá vươn mềm mại)
-        const petioleMat = new THREE.MeshStandardMaterial({
-          color: s.xrayMode ? 0x0891b2 : 0x22c55e,
-          roughness: 0.38,
-          metalness: 0.02,
-        });
-
-        // Botanical Leaf Blade Material (Double-sided organic look)
-        const leafBladeMat = new THREE.MeshStandardMaterial({
-          vertexColors: true,
-          side: THREE.DoubleSide,
-          roughness: s.xrayMode ? 0.2 : 0.34,
-          metalness: 0.02,
-          transparent: s.xrayMode,
-          opacity: s.xrayMode ? 0.42 : 1.0,
-        });
-
-        const leafBladeGeo = createBotanicalLeafGeometry(0.88, 0.52, 0.09, 0.22, 0.014);
-
-        // Left Petiole: Gentle 3D arching curve
-        const petioleCurveL = new THREE.CubicBezierCurve3(
-          new THREE.Vector3(0, 0.01, 0),
-          new THREE.Vector3(-0.10, 0.06, 0.03),
-          new THREE.Vector3(-0.22, 0.12, 0.05),
-          new THREE.Vector3(-0.32, 0.15, 0.06)
-        );
-        const petioleGeoL = new THREE.TubeGeometry(petioleCurveL, 16, 0.022, 10, false);
-        const petioleMeshL = new THREE.Mesh(petioleGeoL, petioleMat);
-        petioleMeshL.castShadow = true;
-        leavesMesh.add(petioleMeshL);
-
-        // Left True Leaf Blade
-        const leafBladeL = new THREE.Mesh(leafBladeGeo, leafBladeMat);
-        leafBladeL.position.set(-0.32, 0.15, 0.06);
-        leafBladeL.rotation.set(-0.32, -0.42, 0.82);
-        // Heliotropic angle adjustment: slight tilt towards light
-        if (s.lightAngle < -10) leafBladeL.rotation.y -= 0.15;
-        leafBladeL.castShadow = true;
-        leavesMesh.add(leafBladeL);
-
-        // Raised 3D Midrib Vein on Left Leaf
-        const midribCurveL = new THREE.CubicBezierCurve3(
-          new THREE.Vector3(0, 0, 0),
-          new THREE.Vector3(0, 0.35, -0.05),
-          new THREE.Vector3(0, 0.65, -0.12),
-          new THREE.Vector3(0, 0.88, -0.19)
-        );
-        const midribGeoL = new THREE.TubeGeometry(midribCurveL, 16, 0.014, 8, false);
-        const midribMat = new THREE.MeshStandardMaterial({ color: 0x86efac, roughness: 0.4 });
-        const midribMeshL = new THREE.Mesh(midribGeoL, midribMat);
-        leafBladeL.add(midribMeshL);
-
-        // Right Petiole
-        const petioleCurveR = new THREE.CubicBezierCurve3(
-          new THREE.Vector3(0, 0.01, 0),
-          new THREE.Vector3(0.10, 0.06, 0.03),
-          new THREE.Vector3(0.22, 0.12, 0.05),
-          new THREE.Vector3(0.32, 0.15, 0.06)
-        );
-        const petioleGeoR = new THREE.TubeGeometry(petioleCurveR, 16, 0.022, 10, false);
-        const petioleMeshR = new THREE.Mesh(petioleGeoR, petioleMat);
-        petioleMeshR.castShadow = true;
-        leavesMesh.add(petioleMeshR);
-
-        // Right True Leaf Blade
-        const leafBladeR = new THREE.Mesh(leafBladeGeo, leafBladeMat);
-        leafBladeR.position.set(0.32, 0.15, 0.06);
-        leafBladeR.rotation.set(-0.32, 0.42, -0.82);
-        if (s.lightAngle > 10) leafBladeR.rotation.y += 0.15;
-        leafBladeR.castShadow = true;
-        leavesMesh.add(leafBladeR);
-
-        // Raised 3D Midrib Vein on Right Leaf
-        const midribMeshR = new THREE.Mesh(midribGeoL, midribMat);
-        leafBladeR.add(midribMeshR);
-
-        // 3. Shoot Apical Meristem & Nascent Leaflets (Chồi đỉnh sinh trưởng & búp non chúm chím)
-        const apicalGroup = new THREE.Group();
-        apicalGroup.position.set(0, 0.03, 0);
-
-        // Miniature emerging leaflet pair in bud
-        const budLeafMat = new THREE.MeshStandardMaterial({ color: 0xbef264, roughness: 0.3 });
-        const budLeafGeo = new THREE.SphereGeometry(0.06, 12, 12);
-        budLeafGeo.scale(0.8, 1.8, 0.35);
-
-        const budL = new THREE.Mesh(budLeafGeo, budLeafMat);
-        budL.position.set(-0.025, 0.07, 0.01);
-        budL.rotation.set(0.1, 0.2, 0.18);
-        apicalGroup.add(budL);
-
-        const budR = new THREE.Mesh(budLeafGeo, budLeafMat);
-        budR.position.set(0.025, 0.07, -0.01);
-        budR.rotation.set(-0.1, -0.2, -0.18);
-        apicalGroup.add(budR);
-
-        leavesMesh.add(apicalGroup);
-
-        // Darwin Treatment accessories
-        if (s.plantTreatment === 'opaque_cap') {
-          const capGeo = new THREE.CylinderGeometry(0.16, 0.18, 0.42, 24);
-          const capMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.35, metalness: 0.5 });
-          treatmentItem = new THREE.Mesh(capGeo, capMat);
-          treatmentItem.position.copy(p4);
-          treatmentItem.quaternion.copy(crownQuat);
-          treatmentItem.position.y += 0.18;
-          treatmentItem.castShadow = true;
-          plantGroup.add(treatmentItem);
-        } else if (s.plantTreatment === 'transparent_cap') {
-          const capGeo = new THREE.CylinderGeometry(0.16, 0.18, 0.42, 24);
-          const capMat = new THREE.MeshPhysicalMaterial({
-            color: 0xffffff,
-            transmission: 0.95,
-            opacity: 1,
-            transparent: true,
-            roughness: 0.04,
-            ior: 1.5,
-          });
-          treatmentItem = new THREE.Mesh(capGeo, capMat);
-          treatmentItem.position.copy(p4);
-          treatmentItem.quaternion.copy(crownQuat);
-          treatmentItem.position.y += 0.18;
-          plantGroup.add(treatmentItem);
-        } else if (s.plantTreatment === 'agar_block') {
-          const agarGeo = new THREE.BoxGeometry(0.24, 0.12, 0.24);
-          const agarMat = new THREE.MeshPhysicalMaterial({
-            color: 0xfef08a,
-            transmission: 0.82,
-            opacity: 0.9,
-            transparent: true,
-            roughness: 0.1,
-          });
-          treatmentItem = new THREE.Mesh(agarGeo, agarMat);
-          treatmentItem.position.copy(p4);
-          treatmentItem.position.y -= 0.06;
-          plantGroup.add(treatmentItem);
-        } else if (s.plantTreatment === 'mica_insert') {
-          const micaGeo = new THREE.BoxGeometry(0.25, 0.03, 0.14);
-          const micaMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.95, roughness: 0.1 });
-          treatmentItem = new THREE.Mesh(micaGeo, micaMat);
-          treatmentItem.position.copy(p4);
-          treatmentItem.position.y -= 0.10;
-          treatmentItem.position.x += angleRad > 0 ? -0.08 : 0.08;
-          plantGroup.add(treatmentItem);
-        }
-
-        plantGroup.add(leavesMesh);
-      } else {
-        // Decapitated Cut Stem Surface
-        const cutGeo = new THREE.CylinderGeometry(0.068, 0.068, 0.02, 24);
-        const cutMat = new THREE.MeshStandardMaterial({ color: 0x86efac, roughness: 0.5 });
-        treatmentItem = new THREE.Mesh(cutGeo, cutMat);
-        treatmentItem.position.copy(p4);
-        plantGroup.add(treatmentItem);
-      }
-
-      // 4. Cellular Elongation Zone & Auxin Visualizer (Khi bật X-Ray Mode)
-      if (s.xrayMode) {
-        cellsGroup = new THREE.Group();
-        plantGroup.add(cellsGroup);
-
-        const darkSideDir = angleRad >= 0 ? -1 : 1;
-        const cellCount = 9;
-
-        // Sample points along the elongation zone (u = 0.40 to 0.88)
-        for (let c = 0; c < cellCount; c++) {
-          const uCell = 0.42 + (c / (cellCount - 1)) * 0.44;
-          const pt = curve.getPointAt(uCell);
-          const tangent = curve.getTangentAt(uCell).normalize();
-          const normal = new THREE.Vector3(-tangent.y, tangent.x, 0).normalize();
-
-          // Illuminated Side Cell: Short compact cell (nồng độ Auxin thấp)
-          const lightCellGeo = new THREE.BoxGeometry(0.038, 0.068, 0.038);
-          const lightCellMat = new THREE.MeshStandardMaterial({
-            color: 0x34d399,
-            roughness: 0.2,
-            transparent: true,
-            opacity: 0.85,
-          });
-          const lightCell = new THREE.Mesh(lightCellGeo, lightCellMat);
-          const lightOffset = normal.clone().multiplyScalar(-darkSideDir * 0.065);
-          lightCell.position.copy(pt).add(lightOffset);
-          cellsGroup.add(lightCell);
-
-          // Shaded Side Cell: Elongated cell (gấp đôi chiều dài do Auxin kích thích dãn dài!)
-          const darkCellGeo = new THREE.BoxGeometry(0.038, 0.155, 0.038);
-          const darkCellMat = new THREE.MeshStandardMaterial({
-            color: 0xf59e0b,
-            emissive: 0xd97706,
-            emissiveIntensity: 0.35,
-            roughness: 0.2,
-            transparent: true,
-            opacity: 0.92,
-          });
-          const darkCell = new THREE.Mesh(darkCellGeo, darkCellMat);
-          const darkOffset = normal.clone().multiplyScalar(darkSideDir * 0.065);
-          darkCell.position.copy(pt).add(darkOffset);
-          cellsGroup.add(darkCell);
-        }
-      }
-
-      // Update Auxin particle positions along stem
-      if (auxinParticles && s.xrayMode) {
-        auxinParticles.visible = true;
-        const posAttr = particleGeo.attributes.position as THREE.BufferAttribute;
-        const darkSideDir = angleRad >= 0 ? -1 : 1;
-        const isBendingPossible =
-          s.plantTreatment === 'normal' ||
-          s.plantTreatment === 'transparent_cap' ||
-          s.plantTreatment === 'agar_block';
-
-        for (let i = 0; i < particleCount; i++) {
-          const t = particleTValues[i];
-          const pointOnCurve = curve.getPoint(t);
+      // Update Auxin particle positions along stem (only while X-Ray is visible and either dirty or playing)
+      if (auxinParticles) {
+        auxinParticles.visible = s.xrayMode;
+        if (s.xrayMode && (geometryDirty || isPlayingRef.current)) {
+          const posAttr = particleGeo.attributes.position as THREE.BufferAttribute;
+          const darkSideDir = angleRad >= 0 ? -1 : 1;
+          const isBendingPossible =
+            s.plantTreatment === 'normal' ||
+            s.plantTreatment === 'transparent_cap' ||
+            s.plantTreatment === 'agar_block';
           const auxinShift = isBendingPossible
             ? darkSideDir * (0.052 + Math.abs(angleRad) * 0.065)
             : 0;
-          const jitterX = (Math.random() - 0.5) * 0.035;
-          const jitterZ = (Math.random() - 0.5) * 0.045;
 
-          posAttr.setXYZ(i, pointOnCurve.x + auxinShift + jitterX, pointOnCurve.y, pointOnCurve.z + jitterZ);
+          for (let i = 0; i < particleCount; i++) {
+            plantCurve.getPoint(particleTValues[i], scratchPt);
+            const jitterX = (Math.random() - 0.5) * 0.035;
+            const jitterZ = (Math.random() - 0.5) * 0.045;
+            posAttr.setXYZ(i, scratchPt.x + auxinShift + jitterX, scratchPt.y, scratchPt.z + jitterZ);
+          }
+          posAttr.needsUpdate = true;
         }
-        posAttr.needsUpdate = true;
-      } else if (auxinParticles) {
-        auxinParticles.visible = false;
       }
     }
 
     // Animation Loop
     let animationFrameId: number;
-    let clock = new THREE.Clock();
+    const timer = new THREE.Timer();
+    timer.connect(document);
+    const plantTipPos = new THREE.Vector3(0, 2.4, 0);
+    let lastReportedDeg = Number.NaN;
+    let lastReportTime = 0;
 
-    const animate = () => {
+    const animate = (timestamp?: number) => {
       animationFrameId = requestAnimationFrame(animate);
       if (!isActiveRef.current) return;
 
-      const delta = clock.getDelta();
+      timer.update(timestamp);
+      const delta = Math.min(timer.getDelta(), 0.1);
       const s = stateRef.current;
       const playing = isPlayingRef.current;
       const dark = darkroomRef.current;
@@ -923,8 +987,14 @@ export default function PhototropismScene({
       currentBentAngleRef.current += (targetAngleRad - currentBentAngleRef.current) * Math.min(growthSpeed, 0.2);
 
       if (onAngleUpdate) {
-        const curDeg = (currentBentAngleRef.current * 180) / Math.PI;
-        onAngleUpdate(Math.round(curDeg * 10) / 10);
+        const curDeg = Math.round(((currentBentAngleRef.current * 180) / Math.PI) * 10) / 10;
+        const now = performance.now();
+        const settled = Math.abs(targetAngleRad - currentBentAngleRef.current) < 0.001;
+        if (curDeg !== lastReportedDeg && (settled || now - lastReportTime >= 100)) {
+          lastReportedDeg = curDeg;
+          lastReportTime = now;
+          onAngleUpdate(curDeg);
+        }
       }
 
       // Update Lamp 3D Position
@@ -937,7 +1007,6 @@ export default function PhototropismScene({
       lampGroup.position.set(lampX, 0, lampZ);
       lampGroup.rotation.y = -lampAngleRad;
 
-      const plantTipPos = new THREE.Vector3(0, 2.4, 0);
       spotLight.position.set(lampX, lampY, lampZ);
       spotLight.target.position.copy(plantTipPos);
       spotLight.target.updateMatrixWorld();
@@ -967,16 +1036,18 @@ export default function PhototropismScene({
       beamMat.opacity = (s.lightIntensity / 100) * (dark ? 0.22 : 0.08) * (s.lightColor === 'off' ? 0 : 1);
 
       // Floating dust particles animation
-      const time = clock.getElapsedTime();
-      const posAttr = dustGeo.attributes.position as THREE.BufferAttribute;
-      for (let i = 0; i < dustCount; i++) {
-        let py = posAttr.getY(i) - delta * 0.12;
-        if (py < 0.2) py = 3.2;
-        posAttr.setY(i, py);
-        posAttr.setX(i, posAttr.getX(i) + Math.sin(time + i) * 0.001);
-      }
-      posAttr.needsUpdate = true;
+      const time = timer.getElapsed();
       dustPoints.visible = s.lightColor !== 'off' && s.lightIntensity > 10;
+      if (dustPoints.visible) {
+        const posAttr = dustGeo.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < dustCount; i++) {
+          let py = posAttr.getY(i) - delta * 0.12;
+          if (py < 0.2) py = 3.2;
+          posAttr.setY(i, py);
+          posAttr.setX(i, posAttr.getX(i) + Math.sin(time + i) * 0.001);
+        }
+        posAttr.needsUpdate = true;
+      }
 
       updatePlantGeometry(currentBentAngleRef.current, s);
 
@@ -997,18 +1068,9 @@ export default function PhototropismScene({
     return () => {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
+      timer.dispose();
       controls.dispose();
-      scene.traverse((obj) => {
-        if ((obj as THREE.Mesh).isMesh) {
-          const mesh = obj as THREE.Mesh;
-          mesh.geometry?.dispose();
-          if (Array.isArray(mesh.material)) {
-            (mesh.material as THREE.Material[]).forEach((m) => m.dispose());
-          } else {
-            (mesh.material as THREE.Material)?.dispose();
-          }
-        }
-      });
+      disposeSceneResources(scene);
       renderer.dispose();
       renderer.forceContextLoss();
       if (container && renderer.domElement) {

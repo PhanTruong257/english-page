@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { PhotosynthesisState } from '../types';
-import { setupLabEnvironment } from './LabEnvironment';
+import { setupLabEnvironment, disposeSceneResources } from './LabEnvironment';
 
 interface Props {
   state: PhotosynthesisState;
@@ -221,16 +221,14 @@ export default function PhotosynthesisScene({
     beakerGroup.position.set(0, 0, 0);
     scene.add(beakerGroup);
 
-    // Borosilicate Glass Material (Ultra-realistic glass shader)
+    // Borosilicate Glass Material (crisp specular glass without costly transmission double-pass)
     const glassMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      transmission: 0.94,
-      opacity: 1,
+      color: 0xe0f2fe,
+      opacity: 0.22,
       transparent: true,
       roughness: 0.03,
-      ior: 1.52,
-      thickness: 0.4,
-      reflectivity: 0.6,
+      metalness: 0.08,
+      reflectivity: 0.9,
       clearcoat: 1.0,
       clearcoatRoughness: 0.05,
       depthWrite: false,
@@ -304,12 +302,11 @@ export default function PhotosynthesisScene({
     const waterGeo = new THREE.CylinderGeometry(waterRadius, waterRadius * 0.98, waterHeight, 48);
     const waterMat = new THREE.MeshPhysicalMaterial({
       color: 0x38bdf8,
-      transmission: 0.94,
-      opacity: 0.72,
+      opacity: 0.25,
       transparent: true,
-      roughness: 0.015,
-      ior: 1.333,
-      thickness: 0.6,
+      roughness: 0.03,
+      clearcoat: 0.85,
+      reflectivity: 0.85,
       depthWrite: false,
     });
     const water = new THREE.Mesh(waterGeo, waterMat);
@@ -388,7 +385,6 @@ export default function PhotosynthesisScene({
     const testTube = new THREE.Mesh(testTubeGeo, apparatusGlassMat);
     testTube.position.y = 2.45;
     testTube.renderOrder = 4;
-    funnelGroup.add(testTube);
     funnelGroup.add(testTube);
 
     // Inverted Test Tube Volume Marks (ml graduation lines)
@@ -610,9 +606,8 @@ export default function PhotosynthesisScene({
       emissiveIntensity: 0.95,
       roughness: 0.03,
       metalness: 0.1,
-      transmission: 0.88,
       transparent: true,
-      opacity: 0.95,
+      opacity: 0.88,
       clearcoat: 1.0,
       clearcoatRoughness: 0.03,
       reflectivity: 0.98,
@@ -993,10 +988,11 @@ export default function PhotosynthesisScene({
     const filterGeo = new THREE.BoxGeometry(0.04, 1.4, 1.4);
     const filterMat = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
-      transmission: 0.88,
       transparent: true,
-      opacity: 0.75,
+      opacity: 0.42,
       roughness: 0.05,
+      clearcoat: 0.9,
+      depthWrite: false,
     });
     const filterMesh = new THREE.Mesh(filterGeo, filterMat);
     filterMesh.position.set(0.72, 1.85, 0);
@@ -1101,16 +1097,21 @@ export default function PhotosynthesisScene({
 
     // Animation & Calculation Loop
     let animationFrameId: number;
-    let clock = new THREE.Clock();
+    const timer = new THREE.Timer();
+    timer.connect(document);
     let o2SpawnCounter = 0;
     let co2SpawnCounter = 0;
     let leafEscapeTimer = 0;
+    let lastReportedBpm = -1;
+    let lastReportedVol = -1;
+    let lastReportTime = 0;
 
-    const animate = () => {
+    const animate = (timestamp?: number) => {
       animationFrameId = requestAnimationFrame(animate);
       if (!isActiveRef.current) return;
 
-      const delta = clock.getDelta();
+      timer.update(timestamp);
+      const delta = Math.min(timer.getDelta(), 0.1);
       const s = stateRef.current;
       const playing = isPlayingRef.current;
 
@@ -1162,7 +1163,7 @@ export default function PhotosynthesisScene({
       beamMat.opacity = Math.max(0.06, intensityScale * 0.22);
 
       // Gentle natural underwater leaf swaying animation
-      const time = clock.getElapsedTime();
+      const time = timer.getElapsed();
       for (let idx = 0; idx < leafMeshes.length; idx++) {
         leafMeshes[idx].rotation.z = Math.sin(time * 2.2 + idx * 0.35) * 0.045;
       }
@@ -1362,7 +1363,17 @@ export default function PhotosynthesisScene({
       anatomyGroup.visible = showAnatomyRef.current;
 
       if (onUpdateBubbleRate) {
-        onUpdateBubbleRate(bubblesPerMinute, Math.round(collectedVolRef.current * 10) / 10);
+        const roundedVol = Math.round(collectedVolRef.current * 10) / 10;
+        const now = performance.now();
+        if (
+          (bubblesPerMinute !== lastReportedBpm || roundedVol !== lastReportedVol) &&
+          (now - lastReportTime >= 200 || bubblesPerMinute !== lastReportedBpm)
+        ) {
+          lastReportedBpm = bubblesPerMinute;
+          lastReportedVol = roundedVol;
+          lastReportTime = now;
+          onUpdateBubbleRate(bubblesPerMinute, roundedVol);
+        }
       }
 
       controls.update();
@@ -1382,23 +1393,9 @@ export default function PhotosynthesisScene({
     return () => {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
+      timer.dispose();
       controls.dispose();
-      // Dispose all geometries and materials to free GPU memory
-      scene.traverse((obj) => {
-        if ((obj as THREE.Mesh).isMesh) {
-          const mesh = obj as THREE.Mesh;
-          if (Array.isArray(mesh.geometry)) {
-            (mesh.geometry as unknown as THREE.BufferGeometry[]).forEach((g) => g.dispose());
-          } else {
-            mesh.geometry?.dispose();
-          }
-          if (Array.isArray(mesh.material)) {
-            (mesh.material as THREE.Material[]).forEach((m) => m.dispose());
-          } else {
-            (mesh.material as THREE.Material)?.dispose();
-          }
-        }
-      });
+      disposeSceneResources(scene);
       renderer.dispose();
       renderer.forceContextLoss();
       if (container && renderer.domElement) {

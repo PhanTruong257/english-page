@@ -258,12 +258,15 @@ export function setupLabEnvironment(scene: THREE.Scene, options?: { isDarkroom?:
   rackGroup.add(rackPostR);
 
   const tubeGlassMat = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff,
-    transmission: 0.92,
-    opacity: 1,
+    color: 0xe0f2fe,
+    opacity: 0.28,
     transparent: true,
     roughness: 0.05,
-    ior: 1.48,
+    metalness: 0.1,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.05,
+    reflectivity: 0.9,
+    depthWrite: false,
   });
 
   const tubeColors = [0x38bdf8, 0x10b981, 0xf59e0b, 0xec4899, 0xa855f7];
@@ -400,4 +403,37 @@ export function setupLabEnvironment(scene: THREE.Scene, options?: { isDarkroom?:
     benchGroup,
     setDarkroom,
   };
+}
+
+/**
+ * Disposes all geometries, materials, and textures in a scene cleanly.
+ */
+export function disposeSceneResources(scene: THREE.Scene) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  const textures = new Set<THREE.Texture>();
+
+  scene.traverse((obj) => {
+    const anyObj = obj as unknown as {
+      geometry?: THREE.BufferGeometry;
+      material?: THREE.Material | THREE.Material[];
+    };
+    if (anyObj.geometry) geometries.add(anyObj.geometry);
+    if (anyObj.material) {
+      const mats = Array.isArray(anyObj.material) ? anyObj.material : [anyObj.material];
+      mats.forEach((m) => {
+        if (!m) return;
+        materials.add(m);
+        for (const val of Object.values(m)) {
+          if (val && (val as THREE.Texture).isTexture) {
+            textures.add(val as THREE.Texture);
+          }
+        }
+      });
+    }
+  });
+
+  textures.forEach((t) => t.dispose());
+  materials.forEach((m) => m.dispose());
+  geometries.forEach((g) => g.dispose());
 }
