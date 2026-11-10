@@ -76,8 +76,8 @@ export default function PhotosynthesisScene({
     setCameraView(view);
     if (!controlsRef.current || !cameraRef.current) return;
     if (view === 'closeup') {
-      cameraRef.current.position.set(0, 2.1, 3.4);
-      controlsRef.current.target.set(0, 1.9, 0);
+      cameraRef.current.position.set(0, 1.05, 2.3);
+      controlsRef.current.target.set(0, 0.65, 0);
     } else {
       cameraRef.current.position.set(0, 3.8, 8.2);
       controlsRef.current.target.set(0, 1.8, 0);
@@ -528,6 +528,7 @@ export default function PhotosynthesisScene({
     });
 
     const leafMeshes: THREE.Mesh[] = [];
+    const leafInfos: { mesh: THREE.Mesh; length: number; maxWidth: number }[] = [];
 
     // Dense whorls of 4-5 leaves at each node along main stalk
     for (let t = 0.1; t <= 0.90; t += 0.068) {
@@ -542,6 +543,7 @@ export default function PhotosynthesisScene({
         leaf.castShadow = true;
         elodeaGroup.add(leaf);
         leafMeshes.push(leaf);
+        leafInfos.push({ mesh: leaf, length: 0.48, maxWidth: 0.055 });
       }
     }
 
@@ -557,6 +559,7 @@ export default function PhotosynthesisScene({
         leaf.castShadow = true;
         elodeaGroup.add(leaf);
         leafMeshes.push(leaf);
+        leafInfos.push({ mesh: leaf, length: 0.38, maxWidth: 0.045 });
       }
     }
 
@@ -572,7 +575,177 @@ export default function PhotosynthesisScene({
         leaf.castShadow = true;
         elodeaGroup.add(leaf);
         leafMeshes.push(leaf);
+        leafInfos.push({ mesh: leaf, length: 0.38, maxWidth: 0.045 });
       }
+    }
+
+    // White specular highlight spot for authentic 3D spherical bubble sheen (dùng chung cho mọi bọt khí)
+    const o2GlintMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+    });
+
+    // 6b. Bọt khí Oxy li ti bám trên bề mặt lá rong (Clinging Leaf Micro-Bubbles)
+    interface LeafClingingBubble {
+      group: THREE.Group;
+      mesh: THREE.Mesh;
+      leaf: THREE.Mesh;
+      baseRadius: number;
+      currentRadius: number;
+      maxRadius: number;
+      growthRate: number;
+      pulsePhase: number;
+      pulseSpeed: number;
+    }
+
+    const clingingBubbles: LeafClingingBubble[] = [];
+    const clingingBubbleGeo = new THREE.SphereGeometry(1, 14, 12);
+    const clingingGlintGeo = new THREE.SphereGeometry(0.28, 8, 8);
+
+    const clingingBubbleMat = new THREE.MeshPhysicalMaterial({
+      color: 0xecfeff,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 0.95,
+      roughness: 0.03,
+      metalness: 0.1,
+      transmission: 0.88,
+      transparent: true,
+      opacity: 0.95,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.03,
+      reflectivity: 0.98,
+      depthWrite: false,
+    });
+
+    // Tạo bọt khí bám trên 85% số lá (mỗi lá có 1-2 bọt li ti)
+    leafInfos.forEach((info, leafIdx) => {
+      if (leafIdx % 7 === 0) return; // một số lá để tự nhiên
+
+      const numBubbles = leafIdx % 3 === 0 ? 2 : 1;
+      for (let b = 0; b < numBubbles; b++) {
+        const bGroup = new THREE.Group();
+        const bMesh = new THREE.Mesh(clingingBubbleGeo, clingingBubbleMat);
+        bGroup.add(bMesh);
+
+        const glint = new THREE.Mesh(clingingGlintGeo, o2GlintMat);
+        glint.position.set(0.38, 0.45, 0.38);
+        bGroup.add(glint);
+
+        // Vị trí dọc phiến lá (lá vươn theo trục -Z từ 0 đến -length)
+        const u = 0.22 + b * 0.38 + Math.random() * 0.22;
+        const localZ = -info.length * u;
+        const widthAtU = info.maxWidth * Math.sin(Math.min(1, u) * Math.PI);
+        const localX = (Math.random() - 0.5) * widthAtU * 0.75;
+        // Bám trên bề mặt trên của phiến lá (có độ cong hình máng lượn sóng)
+        const localY = (localX * localX) * 0.2 + 0.018;
+
+        bGroup.position.set(localX, localY, localZ);
+        info.mesh.add(bGroup);
+
+        const baseR = 0.012 + Math.random() * 0.006;
+        const initR = 0.014 + Math.random() * 0.016;
+        const maxR = 0.030 + Math.random() * 0.016;
+
+        bGroup.scale.setScalar(initR);
+
+        clingingBubbles.push({
+          group: bGroup,
+          mesh: bMesh,
+          leaf: info.mesh,
+          baseRadius: baseR,
+          currentRadius: initR,
+          maxRadius: maxR,
+          growthRate: 0.007 + Math.random() * 0.009,
+          pulsePhase: Math.random() * Math.PI * 2,
+          pulseSpeed: 3.0 + Math.random() * 2.5,
+        });
+      }
+    });
+
+    // 6c. Bọt khí Oxy tách và thoát ra từ các phiến lá (Escaping Leaf Bubbles)
+    const maxLeafEscapingBubbles = 65;
+    const leafEscapingGroup = new THREE.Group();
+    leafEscapingGroup.renderOrder = 13;
+    scene.add(leafEscapingGroup);
+
+    interface LeafEscapingItem {
+      group: THREE.Group;
+      mesh: THREE.Mesh;
+      active: boolean;
+      speed: number;
+      baseX: number;
+      baseZ: number;
+      currX: number;
+      currY: number;
+      currZ: number;
+      wobbleSpeed: number;
+      wobbleOffset: number;
+      wobbleAmp: number;
+    }
+
+    const leafEscapingBubbles: LeafEscapingItem[] = [];
+    const leafEscapingGeo = new THREE.SphereGeometry(0.046, 14, 14);
+
+    const leafEscapingMat = new THREE.MeshPhysicalMaterial({
+      color: 0xcffafe,
+      emissive: 0x0ea5e9,
+      emissiveIntensity: 0.85,
+      roughness: 0.04,
+      metalness: 0.1,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.03,
+      reflectivity: 0.95,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+    });
+
+    for (let i = 0; i < maxLeafEscapingBubbles; i++) {
+      const bGroup = new THREE.Group();
+      bGroup.visible = false;
+      leafEscapingGroup.add(bGroup);
+
+      const bMesh = new THREE.Mesh(leafEscapingGeo, leafEscapingMat);
+      bGroup.add(bMesh);
+
+      const glint = new THREE.Mesh(new THREE.SphereGeometry(0.046 * 0.28, 8, 8), o2GlintMat);
+      glint.position.set(0.046 * 0.38, 0.046 * 0.45, 0.046 * 0.38);
+      bGroup.add(glint);
+
+      leafEscapingBubbles.push({
+        group: bGroup,
+        mesh: bMesh,
+        active: false,
+        speed: 0.46 + Math.random() * 0.26,
+        baseX: 0,
+        baseZ: 0,
+        currX: 0,
+        currY: 0,
+        currZ: 0,
+        wobbleSpeed: 4.5 + Math.random() * 3.5,
+        wobbleOffset: Math.random() * Math.PI * 2,
+        wobbleAmp: 0.014 + Math.random() * 0.008,
+      });
+    }
+
+    const tempLeafWorldPos = new THREE.Vector3();
+    function spawnLeafEscapingBubble(cb: LeafClingingBubble) {
+      const inactive = leafEscapingBubbles.find((b) => !b.active);
+      if (!inactive) return;
+
+      cb.group.getWorldPosition(tempLeafWorldPos);
+      inactive.active = true;
+      inactive.group.visible = true;
+      inactive.baseX = tempLeafWorldPos.x;
+      inactive.baseZ = tempLeafWorldPos.z;
+      inactive.currX = tempLeafWorldPos.x;
+      inactive.currY = tempLeafWorldPos.y + 0.02;
+      inactive.currZ = tempLeafWorldPos.z;
+      inactive.group.position.set(inactive.currX, inactive.currY, inactive.currZ);
+      const randomScale = 0.75 + Math.random() * 0.5;
+      inactive.group.scale.setScalar(randomScale);
     }
 
     // 7. Glistening O2 Product Bubbles (Bọt khí Oxy sinh ra từ quang hợp - Đi qua phễu vào ống nghiệm)
@@ -610,14 +783,6 @@ export default function PhotosynthesisScene({
       reflectivity: 0.95,
       transparent: true,
       opacity: 0.88,
-      depthWrite: false,
-    });
-
-    // White specular highlight spot for authentic 3D spherical bubble sheen
-    const o2GlintMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.95,
       depthWrite: false,
     });
 
@@ -929,7 +1094,7 @@ export default function PhotosynthesisScene({
 
     const pin1 = createPin(0, 3.4, 0, '1. Ống nghiệm thu O₂', 0x38bdf8);
     const pin2 = createPin(0, 1.15, 0, '2. Vết cắt xéo giải phóng O₂', 0x22c55e);
-    const pin3 = createPin(-0.35, 0.65, 0.2, '3. Lá rong hấp thụ CO₂', 0x10b981);
+    const pin3 = createPin(-0.35, 0.65, 0.2, '3. Bọt khí O₂ bám & thoát từ lá', 0x10b981);
     const pin4 = createPin(0.65, 0.35, 0.45, '4. Viên NaHCO₃ sủi bọt CO₂', 0xf59e0b);
     anatomyGroup.add(pin1, pin2, pin3, pin4);
     anatomyGroup.visible = false;
@@ -939,6 +1104,7 @@ export default function PhotosynthesisScene({
     let clock = new THREE.Clock();
     let o2SpawnCounter = 0;
     let co2SpawnCounter = 0;
+    let leafEscapeTimer = 0;
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
@@ -988,6 +1154,8 @@ export default function PhotosynthesisScene({
       spotLight.color.setHex(filterHex);
       beamMat.color.setHex(filterHex);
       dustMat.color.setHex(filterHex);
+      clingingBubbleMat.emissive.setHex(filterHex === 0xffffff ? 0x38bdf8 : filterHex);
+      leafEscapingMat.emissive.setHex(filterHex === 0xffffff ? 0x0ea5e9 : filterHex);
 
       const intensityScale = (100 - (s.lampDistance - 10) * 0.7) / 100;
       spotLight.intensity = Math.max(1.5, intensityScale * 9.5);
@@ -1011,7 +1179,87 @@ export default function PhotosynthesisScene({
       gasPocket.position.y = 3.25 - (volScale * 0.45);
       tubeMeniscus.position.y = gasPocket.position.y - (gasPocket.scale.y * 0.5);
 
-      // 1. Emit O2 bubbles from cut stem port
+      const o2GasTopLimit = Math.max(1.5, tubeMeniscus.position.y);
+      const waterTopLimit = 2.45;
+      const visualSpeedMultiplier = playing ? Math.min(2.0, 0.85 + s.timeMultiplier * 0.2) : 0.1;
+
+      // 1a. Bọt khí Oxy li ti bám trên lá: lớn dần theo cường độ quang hợp, lấp lánh và tách ra khi đủ lớn
+      for (const cb of clingingBubbles) {
+        if (playing && bubblesPerMinute > 0.5) {
+          // Bọt khí lớn dần theo tốc độ quang hợp và hệ số tua nhanh thời gian
+          cb.currentRadius += cb.growthRate * rateNormalized * s.timeMultiplier * delta;
+
+          // Hiệu ứng phập phồng sinh học & khúc xạ lấp lánh
+          const pulse = 1 + Math.sin(time * cb.pulseSpeed + cb.pulsePhase) * 0.09;
+          const displayRadius = Math.max(0.006, cb.currentRadius * pulse);
+          cb.group.scale.setScalar(displayRadius);
+          cb.group.visible = true;
+
+          // Khi bọt khí tích tụ đủ lớn -> thắng lực căng bề mặt và tách ra khỏi phiến lá!
+          if (cb.currentRadius >= cb.maxRadius) {
+            spawnLeafEscapingBubble(cb);
+            // Bọt mới li ti bắt đầu hình thành lại tại vị trí đó
+            cb.currentRadius = 0.007 + Math.random() * 0.006;
+            cb.maxRadius = 0.026 + Math.random() * 0.016;
+          }
+        } else {
+          // Khi tắt đèn hoặc dừng: bọt khí co nhỏ lại trạng thái li ti ban đầu
+          cb.currentRadius = Math.max(0.010, cb.currentRadius - delta * 0.005);
+          cb.group.scale.setScalar(cb.currentRadius);
+        }
+      }
+
+      // 1b. Dòng khí thoát ra liên tục từ các phiến lá khi quang hợp diễn ra
+      if (playing && bubblesPerMinute > 0.5) {
+        leafEscapeTimer += delta;
+        const streamFreq = (bubblesPerMinute / 60) * 1.6 * Math.min(3.0, 0.9 + s.timeMultiplier * 0.3);
+        const streamInterval = Math.max(0.10, 1.2 / Math.max(0.1, streamFreq));
+
+        if (leafEscapeTimer >= streamInterval) {
+          leafEscapeTimer = 0;
+          const randomSite = clingingBubbles[Math.floor(Math.random() * clingingBubbles.length)];
+          if (randomSite) {
+            spawnLeafEscapingBubble(randomSite);
+            randomSite.currentRadius = 0.008 + Math.random() * 0.005;
+          }
+        }
+      }
+
+      // 1c. Bọt khí thoát từ phiến lá uốn lượn bay lên qua phễu thu vào ống nghiệm
+      for (const lb of leafEscapingBubbles) {
+        if (!lb.active) continue;
+
+        lb.currY += lb.speed * delta * visualSpeedMultiplier;
+        const wobbleX = Math.sin(time * lb.wobbleSpeed + lb.wobbleOffset) * lb.wobbleAmp;
+        const wobbleZ = Math.cos(time * lb.wobbleSpeed + lb.wobbleOffset) * lb.wobbleAmp;
+
+        // Bề mặt phễu thủy tinh dốc thu gom bọt khí hướng về phía cổ phễu (y ~ 1.125)
+        if (lb.currY < 1.15) {
+          const funnelPull = delta * (2.2 + Math.max(0, lb.currY - 0.3) * 2.5);
+          lb.baseX = THREE.MathUtils.lerp(lb.baseX, 0, funnelPull);
+          lb.baseZ = THREE.MathUtils.lerp(lb.baseZ, 0, funnelPull);
+        } else {
+          // Đã lọt vào cuống phễu và ống nghiệm (y >= 1.15): giữ gọn trong lòng ống nghiệm
+          lb.baseX = THREE.MathUtils.lerp(lb.baseX, 0, delta * 3.8);
+          lb.baseZ = THREE.MathUtils.lerp(lb.baseZ, 0, delta * 3.8);
+        }
+
+        lb.group.position.set(lb.baseX + wobbleX, lb.currY, lb.baseZ + wobbleZ);
+
+        // Chạm vào lớp khí Oxy thu được trên đỉnh ống nghiệm
+        if (lb.currY >= o2GasTopLimit) {
+          lb.active = false;
+          lb.group.visible = false;
+          if (playing) {
+            collectedVolRef.current = Math.min(100, collectedVolRef.current + 0.04 * s.timeMultiplier * delta);
+          }
+        } else if (lb.currY >= waterTopLimit) {
+          lb.active = false;
+          lb.group.visible = false;
+        }
+      }
+
+      // 1d. Emit O2 bubbles from cut stem port (bọt khí từ vết cắt cuống)
       if (playing && bubblesPerMinute > 0.5) {
         // Effective spawn frequency scales with photosynthesis rate and time multiplier
         const spawnFrequency = (bubblesPerMinute / 60) * Math.min(2.5, 0.8 + s.timeMultiplier * 0.25);
@@ -1031,9 +1279,6 @@ export default function PhotosynthesisScene({
           }
         }
       }
-
-      const o2GasTopLimit = Math.max(1.5, tubeMeniscus.position.y);
-      const visualSpeedMultiplier = playing ? Math.min(2.0, 0.85 + s.timeMultiplier * 0.2) : 0.1;
 
       for (const b of o2Bubbles) {
         if (!b.active) continue;
@@ -1075,7 +1320,6 @@ export default function PhotosynthesisScene({
         }
       }
 
-      const waterTopLimit = 2.45;
       for (const cb of co2Bubbles) {
         if (!cb.active) continue;
         cb.mesh.position.y += cb.speed * delta * visualSpeedMultiplier;
@@ -1421,7 +1665,7 @@ export default function PhotosynthesisScene({
             }`}>
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
               Bọt khí Oxy (O₂)
-              <span className="text-[9px] font-normal opacity-75">(sản phẩm)</span>
+              <span className="text-[9px] font-normal opacity-75">(từ lá & cuống)</span>
             </span>
             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
               state.bubblesPerMinute > 30
@@ -1495,7 +1739,7 @@ export default function PhotosynthesisScene({
               ? 'bg-slate-900/95 border-cyan-500/30 text-slate-300'
               : 'bg-slate-50 border-sky-200 text-slate-600'
           }`}>
-            💡 <strong>Phân biệt:</strong> Bọt khí <strong>CO₂ li ti</strong> sủi từ đáy cốc; cây hấp thụ quang hợp tạo chuỗi bọt khí <strong>O₂ to</strong> thoát ở cuống rong nổi lên ống nghiệm!
+            💡 <strong>Phân biệt:</strong> Bọt khí <strong>CO₂ li ti</strong> sủi từ viên NaHCO₃; lá rong hấp thụ CO₂ quang hợp giải phóng <strong>bọt khí O₂ li ti bám trên lá</strong>, lớn dần rồi <strong>tách và thoát ra từ lá</strong> & cuống rong nổi lên ống nghiệm!
           </div>
         )}
       </div>
@@ -1549,7 +1793,7 @@ export default function PhotosynthesisScene({
           <div className="space-y-1.5 text-[11px]">
             <div className="flex items-start gap-1.5">
               <span className="text-cyan-400 font-bold shrink-0">1. Khí O₂:</span>
-              <span className="text-slate-300">Sản phẩm quang hợp thoát ra từ vết cắt cuống rong dưới dạng bọt khí to, đi qua cuống phễu thu vào đỉnh ống nghiệm.</span>
+              <span className="text-slate-300">Sản phẩm quang hợp thoát ra từ bề mặt phiến lá (bọt khí li ti bám và tách bay lên) và từ vết cắt cuống rong, qua cuống phễu thu vào đỉnh ống nghiệm.</span>
             </div>
             <div className="flex items-start gap-1.5">
               <span className="text-amber-400 font-bold shrink-0">2. Khí CO₂:</span>
@@ -1577,7 +1821,7 @@ export default function PhotosynthesisScene({
           ? 'bg-slate-900/80 border-slate-700/80 text-slate-400'
           : 'bg-white/85 border-slate-300 text-slate-600'
       }`}>
-        <span>💡 <strong>Quan sát:</strong> Bọt khí CO₂ li ti sủi trong nước xung quanh lá • Bọt khí O₂ thoát ở cuống rong nổi lên ống nghiệm</span>
+        <span>💡 <strong>Quan sát:</strong> Bọt khí O₂ li ti bám & thoát ra từ bề mặt phiến lá rong và cuống nổi lên ống nghiệm • Bọt khí CO₂ sủi từ viên NaHCO₃</span>
         <span>•</span>
         <span>🖱️ Xoay 3D 360°</span>
       </div>

@@ -71,7 +71,7 @@ export default function PhotosynthesisRelationshipMap({ state, onUpdateState }: 
       {/* Title & Navigation Tabs */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
         <div>
-          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+          <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
             <span>📊</span> Sơ đồ Mối Quan Hệ Nhân - Quả trong Quang Hợp
           </h3>
           <p className="text-[10px] text-slate-500">
@@ -109,7 +109,7 @@ export default function PhotosynthesisRelationshipMap({ state, onUpdateState }: 
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            $CO_2$
+            CO₂
           </button>
           <button
             onClick={() => setSelectedRelation('temp')}
@@ -162,7 +162,7 @@ export default function PhotosynthesisRelationshipMap({ state, onUpdateState }: 
             <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-200 space-y-1.5">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-bold text-emerald-900 flex items-center gap-1">
-                  💨 Nồng độ $CO_2$ ($NaHCO_3$)
+                  💨 Nồng độ CO₂ (NaHCO₃)
                 </span>
                 <span className="font-mono text-emerald-700 font-bold">{co2Efficiency}%</span>
               </div>
@@ -230,7 +230,7 @@ export default function PhotosynthesisRelationshipMap({ state, onUpdateState }: 
 
           {/* Interactive Flow Diagram */}
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-            <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+            <div className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
               <span>Sơ đồ dòng chảy năng lượng & vật chất</span>
               <span className="text-cyan-700 font-mono font-bold text-xs">{state.bubblesPerMinute} bọt O₂/phút</span>
             </div>
