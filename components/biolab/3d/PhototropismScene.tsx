@@ -79,11 +79,11 @@ export default function PhototropismScene({
     camera.position.set(0, 3.8, 8.2);
     cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
     rendererRef.current = renderer;
@@ -344,8 +344,8 @@ export default function PhototropismScene({
     // High-Contrast Directional SpotLight emitting from bulb
     const spotLight = new THREE.SpotLight(0xfffbeb, 8, 16, Math.PI / 3.6, 0.35, 1);
     spotLight.castShadow = true;
-    spotLight.shadow.mapSize.width = 2048;
-    spotLight.shadow.mapSize.height = 2048;
+    spotLight.shadow.mapSize.width = 1024;
+    spotLight.shadow.mapSize.height = 1024;
     spotLight.shadow.camera.near = 0.5;
     spotLight.shadow.camera.far = 16;
     spotLight.shadow.bias = -0.0004;
@@ -998,7 +998,19 @@ export default function PhototropismScene({
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
       controls.dispose();
+      scene.traverse((obj) => {
+        if ((obj as THREE.Mesh).isMesh) {
+          const mesh = obj as THREE.Mesh;
+          mesh.geometry?.dispose();
+          if (Array.isArray(mesh.material)) {
+            (mesh.material as THREE.Material[]).forEach((m) => m.dispose());
+          } else {
+            (mesh.material as THREE.Material)?.dispose();
+          }
+        }
+      });
       renderer.dispose();
+      renderer.forceContextLoss();
       if (container && renderer.domElement) {
         container.removeChild(renderer.domElement);
       }

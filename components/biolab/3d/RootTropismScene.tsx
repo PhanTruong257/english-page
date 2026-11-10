@@ -94,11 +94,11 @@ export default function RootTropismScene({
     camera.position.set(0, 3.4, 7.8);
     cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
     rendererRef.current = renderer;
@@ -186,8 +186,8 @@ export default function RootTropismScene({
     spotLight.position.copy(lampShade.position);
     spotLight.target.position.set(2.8, 1.65, 0.6);
     spotLight.castShadow = true;
-    spotLight.shadow.mapSize.width = 2048;
-    spotLight.shadow.mapSize.height = 2048;
+    spotLight.shadow.mapSize.width = 1024;
+    spotLight.shadow.mapSize.height = 1024;
     spotLight.shadow.bias = -0.0004;
     lampGroup.add(spotLight);
     lampGroup.add(spotLight.target);
@@ -1092,7 +1092,19 @@ export default function RootTropismScene({
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
       controls.dispose();
+      scene.traverse((obj) => {
+        if ((obj as THREE.Mesh).isMesh) {
+          const mesh = obj as THREE.Mesh;
+          mesh.geometry?.dispose();
+          if (Array.isArray(mesh.material)) {
+            (mesh.material as THREE.Material[]).forEach((m) => m.dispose());
+          } else {
+            (mesh.material as THREE.Material)?.dispose();
+          }
+        }
+      });
       renderer.dispose();
+      renderer.forceContextLoss();
       if (container && renderer.domElement) {
         container.removeChild(renderer.domElement);
       }

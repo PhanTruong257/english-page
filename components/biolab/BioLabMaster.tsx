@@ -19,15 +19,17 @@ export default function BioLabMaster() {
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
   const [sidebarTab, setSidebarTab] = useState<'controls' | 'inquiry' | 'analytics' | 'mechanism' | 'missions'>('controls');
 
-  // Track visited labs to keep WebGL instances alive and eliminate tab-switch stutter
-  const [visitedLabs, setVisitedLabs] = useState<Record<LabId, boolean>>({
+  // Mounted labs: once a lab is visited it stays mounted (avoids remount cost)
+  // but animation loops pause when isActive=false, so idle scenes cost almost nothing.
+  const [mountedLabs, setMountedLabs] = useState<Record<LabId, boolean>>({
     phototropism: true,
     photosynthesis: false,
     hydrotropism: false,
   });
 
   useEffect(() => {
-    setVisitedLabs((prev) => (prev[activeLab] ? prev : { ...prev, [activeLab]: true }));
+    // Only mount a scene the first time the user visits it
+    setMountedLabs((prev) => (prev[activeLab] ? prev : { ...prev, [activeLab]: true }));
   }, [activeLab]);
 
   // LAB 1 STATE
@@ -140,7 +142,7 @@ export default function BioLabMaster() {
         {/* Left Column: 3D Scene Viewport (7 cols on lg, 8 on xl) */}
         <section className="lg:col-span-7 xl:col-span-8 flex flex-col min-h-[500px] lg:min-h-[720px] relative">
           <div className={`w-full h-full min-h-[500px] lg:min-h-[720px] ${activeLab === 'phototropism' ? 'block' : 'hidden'}`}>
-            {visitedLabs.phototropism && (
+            {mountedLabs.phototropism && (
               <PhototropismScene
                 state={photoState}
                 onUpdateState={setPhotoState}
@@ -153,7 +155,7 @@ export default function BioLabMaster() {
           </div>
 
           <div className={`w-full h-full min-h-[500px] lg:min-h-[720px] ${activeLab === 'photosynthesis' ? 'block' : 'hidden'}`}>
-            {visitedLabs.photosynthesis && (
+            {mountedLabs.photosynthesis && (
               <PhotosynthesisScene
                 state={synthState}
                 onUpdateState={setSynthState}
@@ -172,7 +174,7 @@ export default function BioLabMaster() {
           </div>
 
           <div className={`w-full h-full min-h-[500px] lg:min-h-[720px] ${activeLab === 'hydrotropism' ? 'block' : 'hidden'}`}>
-            {visitedLabs.hydrotropism && (
+            {mountedLabs.hydrotropism && (
               <RootTropismScene
                 state={hydroState}
                 onUpdateState={setHydroState}

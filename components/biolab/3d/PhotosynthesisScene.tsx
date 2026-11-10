@@ -126,11 +126,11 @@ export default function PhotosynthesisScene({
     camera.position.set(0, 3.8, 8.2);
     cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
     rendererRef.current = renderer;
@@ -665,7 +665,7 @@ export default function PhotosynthesisScene({
     });
 
     // 6c. Bọt khí Oxy tách và thoát ra từ các phiến lá (Escaping Leaf Bubbles)
-    const maxLeafEscapingBubbles = 65;
+    const maxLeafEscapingBubbles = 40;
     const leafEscapingGroup = new THREE.Group();
     leafEscapingGroup.renderOrder = 13;
     scene.add(leafEscapingGroup);
@@ -749,7 +749,7 @@ export default function PhotosynthesisScene({
     }
 
     // 7. Glistening O2 Product Bubbles (Bọt khí Oxy sinh ra từ quang hợp - Đi qua phễu vào ống nghiệm)
-    const maxO2Bubbles = 80;
+    const maxO2Bubbles = 50;
     const o2BubblesGroup = new THREE.Group();
     o2BubblesGroup.renderOrder = 12;
     scene.add(o2BubblesGroup);
@@ -815,7 +815,7 @@ export default function PhotosynthesisScene({
     }
 
     // 8. Effervescent Dissolved CO2 Micro-Bubbles (Bọt khí CO2 sủi tăm li ti từ NaHCO3 lan tỏa trong nước)
-    const maxCo2Bubbles = 120;
+    const maxCo2Bubbles = 60;
     const co2BubblesGroup = new THREE.Group();
     co2BubblesGroup.renderOrder = 8;
     scene.add(co2BubblesGroup);
@@ -946,8 +946,8 @@ export default function PhotosynthesisScene({
     spotLight.position.set(0.2, 1.85, 0);
     spotLight.target.position.set(3.5, 1.85, 0);
     spotLight.castShadow = true;
-    spotLight.shadow.mapSize.width = 2048;
-    spotLight.shadow.mapSize.height = 2048;
+    spotLight.shadow.mapSize.width = 1024;
+    spotLight.shadow.mapSize.height = 1024;
     spotLight.shadow.bias = -0.0004;
     lampRig.add(spotLight);
     lampRig.add(spotLight.target);
@@ -1383,7 +1383,24 @@ export default function PhotosynthesisScene({
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
       controls.dispose();
+      // Dispose all geometries and materials to free GPU memory
+      scene.traverse((obj) => {
+        if ((obj as THREE.Mesh).isMesh) {
+          const mesh = obj as THREE.Mesh;
+          if (Array.isArray(mesh.geometry)) {
+            (mesh.geometry as unknown as THREE.BufferGeometry[]).forEach((g) => g.dispose());
+          } else {
+            mesh.geometry?.dispose();
+          }
+          if (Array.isArray(mesh.material)) {
+            (mesh.material as THREE.Material[]).forEach((m) => m.dispose());
+          } else {
+            (mesh.material as THREE.Material)?.dispose();
+          }
+        }
+      });
       renderer.dispose();
+      renderer.forceContextLoss();
       if (container && renderer.domElement) {
         container.removeChild(renderer.domElement);
       }

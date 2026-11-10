@@ -35,8 +35,8 @@ export function setupLabEnvironment(scene: THREE.Scene, options?: { isDarkroom?:
   const sunLight = new THREE.DirectionalLight(0xfffbeb, isDarkroom ? 0.08 : 1.4);
   sunLight.position.set(6, 12, 8);
   sunLight.castShadow = !isDarkroom;
-  sunLight.shadow.mapSize.width = 2048;
-  sunLight.shadow.mapSize.height = 2048;
+  sunLight.shadow.mapSize.width = 1024;
+  sunLight.shadow.mapSize.height = 1024;
   sunLight.shadow.camera.near = 0.5;
   sunLight.shadow.camera.far = 30;
   sunLight.shadow.camera.left = -6;
